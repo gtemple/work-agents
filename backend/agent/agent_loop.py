@@ -32,6 +32,15 @@ def _compose_system_prompt(session) -> str:
     from .models import Memory
     parts = [BASE_SYSTEM_PROMPT]
 
+    if settings.GITHUB_USERNAME:
+        parts.append(
+            f"## GitHub identity\n"
+            f"The user's GitHub username is `{settings.GITHUB_USERNAME}`. "
+            f"When they say \"my repo\", \"my account\", or similar, default to this username. "
+            f"List repos with: bash(\"curl -s -H 'Authorization: Bearer $GITHUB_TOKEN' "
+            f"'https://api.github.com/users/{settings.GITHUB_USERNAME}/repos?per_page=100&sort=updated'\")"
+        )
+
     if session.system_prompt.strip():
         parts.append(f"## Session context\n{session.system_prompt.strip()}")
 
