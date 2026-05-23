@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { formatElapsed } from '../utils';
+import { formatElapsed, formatTokens, estimateCost, formatCost } from '../utils';
 
 const STATUS_DOT = {
   idle:    { color: '#475569', pulse: false },
@@ -21,7 +21,7 @@ function StatusDot({ status, color }) {
   );
 }
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, now }) {
+export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, globalInputTokens, globalOutputTokens, now }) {
   const [search, setSearch] = useState('');
   const filtered = search.trim()
     ? sessions.filter(s => (s.title || 'New agent').toLowerCase().includes(search.toLowerCase()))
@@ -106,6 +106,18 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
           );
         })}
       </div>
+
+      {(globalInputTokens + globalOutputTokens) > 0 && (
+        <div style={{ padding: '8px 14px', borderTop: '1px solid #1e293b' }}>
+          <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>All sessions</div>
+          <div style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}
+            title={`${formatTokens(globalInputTokens)} in / ${formatTokens(globalOutputTokens)} out`}>
+            {formatTokens(globalInputTokens + globalOutputTokens)} tok
+            {' · '}
+            {formatCost(estimateCost(globalInputTokens, globalOutputTokens))}
+          </div>
+        </div>
+      )}
 
       <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b', display: 'flex', gap: 6 }}>
         <button onClick={onMemory} style={{

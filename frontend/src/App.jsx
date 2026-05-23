@@ -190,10 +190,12 @@ export default function App() {
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
   const active = sessions.find(s => s.id === activeId) ?? null;
+  const globalInputTokens = sessions.reduce((sum, s) => sum + (s.inputTokens || 0), 0);
+  const globalOutputTokens = sessions.reduce((sum, s) => sum + (s.outputTokens || 0), 0);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
           ? <Chat
