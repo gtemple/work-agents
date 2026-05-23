@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 from . import tools
 
-BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, and interact with GitHub repositories.
+BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, search the web, and interact with GitHub repositories.
 
 When working on a task:
 - Always explain what you're doing before and after each step
@@ -60,6 +60,8 @@ def run(session, prompt: str):
     history.append(types.Content(role='user', parts=[types.Part(text=prompt)]))
 
     agent_steps = []
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     while True:
         response = client.models.generate_content(
@@ -70,6 +72,16 @@ def run(session, prompt: str):
                 tools=[_build_tool_config()],
             ),
         )
+
+        # Accumulate token usage
+        if response.usage_metadata:
+            u = response.usage_metadata
+            total_input_tokens += getattr(u, 'prompt_token_count', 0) or 0
+            total_output_tokens += getattr(u, 'candidates_token_count', 0) or 0
+            yield {'type': 'tokens', 'payload': {
+                'input': total_input_tokens,
+                'output': total_output_tokens,
+            }}
 
         candidate = response.candidates[0]
         content = candidate.content
@@ -96,7 +108,11 @@ def run(session, prompt: str):
                     data=step['data'],
                     order=i,
                 )
-            yield {'type': 'done', 'payload': {'message_id': assistant_msg.id}}
+            yield {'type': 'done', 'payload': {
+                'message_id': assistant_msg.id,
+                'input_tokens': total_input_tokens,
+                'output_tokens': total_output_tokens,
+            }}
             return
 
         history.append(content)

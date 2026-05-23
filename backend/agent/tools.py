@@ -2,6 +2,7 @@ import re
 from pathlib import Path
 from . import sandbox
 from . import github as gh
+from . import web
 
 
 DECLARATIONS = [
@@ -141,6 +142,67 @@ DECLARATIONS = [
         'parameters': {
             'type': 'object',
             'properties': {},
+        },
+    },
+    {
+        'name': 'web_search',
+        'description': 'Search the web for documentation, Stack Overflow answers, library info, or any other information needed to complete the task.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'query': {'type': 'string', 'description': 'Search query'},
+                'num_results': {'type': 'integer', 'description': 'Number of results to return (default 6, max 10)'},
+            },
+            'required': ['query'],
+        },
+    },
+    {
+        'name': 'fetch_page',
+        'description': 'Fetch the full text content of a web page URL. Use after web_search to read documentation or articles.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'url': {'type': 'string', 'description': 'URL to fetch'},
+            },
+            'required': ['url'],
+        },
+    },
+    {
+        'name': 'get_pr',
+        'description': 'Get metadata for a GitHub pull request: title, author, description, files changed.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'repo': {'type': 'string', 'description': '"owner/repo" or "auto" to detect from cloned repo'},
+                'pr_number': {'type': 'integer', 'description': 'Pull request number'},
+            },
+            'required': ['repo', 'pr_number'],
+        },
+    },
+    {
+        'name': 'get_pr_diff',
+        'description': 'Get the full unified diff of a GitHub pull request.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'repo': {'type': 'string', 'description': '"owner/repo" or "auto" to detect from cloned repo'},
+                'pr_number': {'type': 'integer', 'description': 'Pull request number'},
+            },
+            'required': ['repo', 'pr_number'],
+        },
+    },
+    {
+        'name': 'post_pr_review',
+        'description': 'Post a review on a GitHub pull request. Use APPROVE, REQUEST_CHANGES, or COMMENT as the event.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'repo': {'type': 'string', 'description': '"owner/repo" or "auto" to detect from cloned repo'},
+                'pr_number': {'type': 'integer', 'description': 'Pull request number'},
+                'body': {'type': 'string', 'description': 'Review body in markdown'},
+                'event': {'type': 'string', 'description': 'APPROVE, REQUEST_CHANGES, or COMMENT'},
+            },
+            'required': ['repo', 'pr_number', 'body', 'event'],
         },
     },
     {
@@ -290,6 +352,26 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
             title=args['title'],
             body=args['body'],
             base=args.get('base_branch', 'main'),
+        )
+
+    elif tool_name == 'web_search':
+        num = min(int(args.get('num_results', 6)), 10)
+        return web.search(args['query'], num)
+
+    elif tool_name == 'fetch_page':
+        return web.fetch_page(args['url'])
+
+    elif tool_name == 'get_pr':
+        return gh.get_pr(args['repo'], int(args['pr_number']), github_token, session_dir)
+
+    elif tool_name == 'get_pr_diff':
+        return gh.get_pr_diff(args['repo'], int(args['pr_number']), github_token, session_dir)
+
+    elif tool_name == 'post_pr_review':
+        return gh.post_pr_review(
+            args['repo'], int(args['pr_number']),
+            github_token, args['body'], args.get('event', 'COMMENT'),
+            session_dir,
         )
 
     return f'Unknown tool: {tool_name}'

@@ -3,7 +3,7 @@ import Message from './Message';
 import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
 import SessionPrompt from './SessionPrompt';
-import { formatElapsed } from '../utils';
+import { formatElapsed, estimateCost, formatCost, formatTokens } from '../utils';
 
 const TEMPLATES = [
   {
@@ -26,6 +26,10 @@ const TEMPLATES = [
     label: 'Create PR',
     text: `[Describe the feature or fix]. Create a new branch, make the changes, commit with a clear message, and open a PR against main with a full description of what changed and why.`,
   },
+  {
+    label: 'Review PR',
+    text: `Review PR #[number] in [owner/repo].\n\nRead the diff, check for bugs, code quality issues, security concerns, and missing tests. Then post a thorough review comment on GitHub.`,
+  },
 ];
 
 export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
@@ -33,6 +37,8 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
   const bottomRef = useRef(null);
   const streaming = session.status === 'running';
   const elapsed = streaming ? formatElapsed(session.startedAt, now) : null;
+  const totalTokens = (session.inputTokens || 0) + (session.outputTokens || 0);
+  const cost = totalTokens > 0 ? estimateCost(session.inputTokens || 0, session.outputTokens || 0) : null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -73,6 +79,12 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
           {streaming && elapsed && (
             <span style={{ fontSize: 11, color: session.color, fontVariantNumeric: 'tabular-nums' }}>
               {session.stepCount > 0 ? `${session.stepCount} steps · ` : ''}{elapsed}
+            </span>
+          )}
+          {cost !== null && (
+            <span style={{ fontSize: 11, color: '#334155', fontVariantNumeric: 'tabular-nums' }}
+              title={`${formatTokens(session.inputTokens)}in / ${formatTokens(session.outputTokens)}out`}>
+              {formatTokens(totalTokens)} tok · {formatCost(cost)}
             </span>
           )}
           <span style={{ fontSize: 11, color: '#334155' }}>gemini-3.5-flash</span>

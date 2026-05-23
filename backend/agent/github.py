@@ -127,3 +127,72 @@ def create_pull_request(git_root: Path, token: str, title: str, body: str, base:
     errors = resp.json().get('errors', [])
     detail = '; '.join(e.get('message', '') for e in errors) if errors else ''
     return f'Error {resp.status_code}: {msg}' + (f' — {detail}' if detail else '')
+
+
+def _gh_headers(token: str) -> dict:
+    return {'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'}
+
+
+def _resolve_slug(repo: str, session_dir: Path) -> str | None:
+    """Accept explicit 'owner/repo' or detect from cloned git root."""
+    if repo and repo != 'auto':
+        m = re.search(r'github\.com[/:](.+?)(?:\.git)?$', repo)
+        return m.group(1) if m else repo
+    git_root = find_git_root(session_dir)
+    return _get_repo_slug(git_root) if git_root else None
+
+
+def get_pr(repo: str, pr_number: int, token: str, session_dir: Path) -> str:
+    slug = _resolve_slug(repo, session_dir)
+    if not slug:
+        return 'Error: could not determine repo — provide "owner/repo" as the repo argument'
+    resp = requests.get(
+        f'https://api.github.com/repos/{slug}/pulls/{pr_number}',
+        headers=_gh_headers(token), timeout=15,
+    )
+    if resp.status_code != 200:
+        return f'Error {resp.status_code}: {resp.json().get("message", "not found")}'
+    d = resp.json()
+    return (
+        f'PR #{d["number"]}: {d["title"]}\n'
+        f'Author: {d["user"]["login"]} | {d["head"]["ref"]} → {d["base"]["ref"]}\n'
+        f'State: {d["state"]} | +{d["additions"]} -{d["deletions"]} across {d["changed_files"]} files\n'
+        f'URL: {d["html_url"]}\n\n'
+        f'Description:\n{d["body"] or "(none)"}'
+    )
+
+
+def get_pr_diff(repo: str, pr_number: int, token: str, session_dir: Path) -> str:
+    slug = _resolve_slug(repo, session_dir)
+    if not slug:
+        return 'Error: could not determine repo'
+    resp = requests.get(
+        f'https://api.github.com/repos/{slug}/pulls/{pr_number}',
+        headers={**_gh_headers(token), 'Accept': 'application/vnd.github.diff'},
+        timeout=15,
+    )
+    if resp.status_code != 200:
+        return f'Error {resp.status_code}'
+    return resp.text[:24000]
+
+
+def post_pr_review(repo: str, pr_number: int, token: str, body: str, event: str, session_dir: Path) -> str:
+    """event: APPROVE | REQUEST_CHANGES | COMMENT"""
+    if not token:
+        return 'Error: GITHUB_TOKEN not configured'
+    slug = _resolve_slug(repo, session_dir)
+    if not slug:
+        return 'Error: could not determine repo'
+    valid_events = {'APPROVE', 'REQUEST_CHANGES', 'COMMENT'}
+    event = event.upper()
+    if event not in valid_events:
+        event = 'COMMENT'
+    resp = requests.post(
+        f'https://api.github.com/repos/{slug}/pulls/{pr_number}/reviews',
+        headers=_gh_headers(token),
+        json={'body': body, 'event': event},
+        timeout=15,
+    )
+    if resp.status_code == 200:
+        return f'Review posted ({event}): {resp.json()["html_url"]}'
+    return f'Error {resp.status_code}: {resp.json().get("message", "unknown")}'

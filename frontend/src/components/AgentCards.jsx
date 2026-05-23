@@ -1,4 +1,4 @@
-import { formatElapsed, TOOL_ICONS } from '../utils';
+import { formatElapsed, TOOL_ICONS, estimateCost, formatCost, formatTokens } from '../utils';
 
 const STATUS_LABEL = { idle: 'idle', running: 'running', done: 'done', error: 'error' };
 
@@ -48,11 +48,12 @@ function Card({ session, onSelect, now }) {
               {TOOL_ICONS[lastTool] || '🔧'} {lastTool}…
             </span>
           )}
-          {session.stepCount > 0 && (
-            <span style={{ fontSize: 11, color: '#475569', marginLeft: lastTool ? 'auto' : 0 }}>
-              {session.stepCount} step{session.stepCount !== 1 ? 's' : ''}
-            </span>
-          )}
+          <span style={{ fontSize: 11, color: '#475569', marginLeft: lastTool ? 'auto' : 0 }}>
+            {session.stepCount > 0 ? `${session.stepCount} steps` : ''}
+            {session.outputTokens > 0
+              ? ` · ${formatCost(estimateCost(session.inputTokens || 0, session.outputTokens))}`
+              : ''}
+          </span>
         </div>
       </div>
     </button>

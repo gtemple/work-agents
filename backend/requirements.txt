@@ -3,3 +3,6 @@ djangorestframework
 google-genai
 python-dotenv
 django-cors-headers
+duckduckgo-search
+beautifulsoup4
+lxml

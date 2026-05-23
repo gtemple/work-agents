@@ -15,6 +15,8 @@ function makeSessionState(s, colorIndex) {
     status: 'idle', stepCount: 0, startedAt: null,
     system_prompt: s.system_prompt ?? '',
     color: PALETTE[colorIndex % PALETTE.length],
+    inputTokens: 0,
+    outputTokens: 0,
   };
 }
 
@@ -112,6 +114,12 @@ export default function App() {
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, liveSteps: acc.steps } : s
         ));
+      } else if (event.type === 'tokens') {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId
+            ? { ...s, inputTokens: event.payload.input, outputTokens: event.payload.output }
+            : s
+        ));
       } else if (event.type === 'assistant_text') {
         acc.text = event.payload.text;
         setSessions(prev => prev.map(s =>
@@ -123,6 +131,8 @@ export default function App() {
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'done', liveSteps: [], liveText: '', stepCount,
+                inputTokens: event.payload.input_tokens ?? s.inputTokens,
+                outputTokens: event.payload.output_tokens ?? s.outputTokens,
                 messages: [...s.messages, { role: 'assistant', content: acc.text, steps: finalSteps }] }
             : s
         ));
