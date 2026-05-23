@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createSession, listSessions, getSession, streamAgent } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -13,6 +13,7 @@ function makeSessionState(s, colorIndex) {
     ...s,
     messages: [], liveSteps: [], liveText: '',
     status: 'idle', stepCount: 0, startedAt: null,
+    system_prompt: s.system_prompt ?? '',
     color: PALETTE[colorIndex % PALETTE.length],
   };
 }
@@ -152,6 +153,11 @@ export default function App() {
     esRefs.current[sessionId] = es;
   }, []);
 
+  const saveSystemPrompt = useCallback((sessionId, value) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, system_prompt: value } : s));
+    updateSession(sessionId, { system_prompt: value });
+  }, []);
+
   const activeIdRef = useRef(activeId);
   useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
 
@@ -162,7 +168,7 @@ export default function App() {
       <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
-          ? <Chat session={active} onSend={(prompt) => send(active.id, prompt)} now={now} />
+          ? <Chat session={active} onSend={(prompt) => send(active.id, prompt)} onSaveSystemPrompt={(v) => saveSystemPrompt(active.id, v)} now={now} />
           : <AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} />
         }
       </div>

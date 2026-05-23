@@ -12,16 +12,26 @@ from . import agent_loop
 @require_http_methods(['POST'])
 def create_session(request):
     data = json.loads(request.body or '{}')
-    session = Session.objects.create(title=data.get('title', ''))
-    return JsonResponse({'id': str(session.id), 'title': session.title, 'created_at': session.created_at.isoformat()})
+    session = Session.objects.create(title=data.get('title', ''), system_prompt=data.get('system_prompt', ''))
+    return JsonResponse({'id': str(session.id), 'title': session.title, 'system_prompt': session.system_prompt, 'created_at': session.created_at.isoformat()})
 
 
-@require_http_methods(['GET'])
+@csrf_exempt
+@require_http_methods(['GET', 'PATCH'])
 def get_session(request, session_id):
     try:
         session = Session.objects.get(id=session_id)
     except Session.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
+
+    if request.method == 'PATCH':
+        data = json.loads(request.body or '{}')
+        if 'system_prompt' in data:
+            session.system_prompt = data['system_prompt']
+        if 'title' in data:
+            session.title = data['title']
+        session.save()
+        return JsonResponse({'ok': True})
 
     messages = []
     for msg in session.messages.all():
@@ -34,14 +44,19 @@ def get_session(request, session_id):
             'created_at': msg.created_at.isoformat(),
         })
 
-    return JsonResponse({'id': str(session.id), 'title': session.title, 'messages': messages})
+    return JsonResponse({
+        'id': str(session.id),
+        'title': session.title,
+        'system_prompt': session.system_prompt,
+        'messages': messages,
+    })
 
 
 @require_http_methods(['GET'])
 def list_sessions(request):
     sessions = Session.objects.all()
     return JsonResponse({'sessions': [
-        {'id': str(s.id), 'title': s.title, 'created_at': s.created_at.isoformat()}
+        {'id': str(s.id), 'title': s.title, 'system_prompt': s.system_prompt, 'created_at': s.created_at.isoformat()}
         for s in sessions
     ]})
 

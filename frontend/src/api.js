@@ -17,6 +17,14 @@ export async function getSession(id) {
   return res.json();
 }
 
+export async function updateSession(id, patch) {
+  await fetch(`/api/sessions/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function uploadFiles(sessionId, files) {
   const form = new FormData();
   for (const file of files) form.append('files', file);

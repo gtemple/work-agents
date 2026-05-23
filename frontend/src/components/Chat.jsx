@@ -2,9 +2,33 @@ import { useState, useEffect, useRef } from 'react';
 import Message from './Message';
 import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
+import SessionPrompt from './SessionPrompt';
 import { formatElapsed } from '../utils';
 
-export default function Chat({ session, onSend, now }) {
+const TEMPLATES = [
+  {
+    label: 'Fix bug',
+    text: `I'm seeing this bug:\n\n[describe the bug]\n\nSteps to reproduce:\n1. \n\nExpected: \nActual: `,
+  },
+  {
+    label: 'Add tests',
+    text: `Add comprehensive tests for [describe what]. Use the existing test framework. Cover edge cases and error conditions.`,
+  },
+  {
+    label: 'Review',
+    text: `Review the code in [file or directory] and:\n1. Identify bugs or issues\n2. Suggest improvements\n3. Check for security concerns\n4. Verify it follows the repo's conventions`,
+  },
+  {
+    label: 'Refactor',
+    text: `Refactor [describe what] to [goal]. Keep behaviour identical. Improve [readability / performance / structure].`,
+  },
+  {
+    label: 'Create PR',
+    text: `[Describe the feature or fix]. Create a new branch, make the changes, commit with a clear message, and open a PR against main with a full description of what changed and why.`,
+  },
+];
+
+export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const streaming = session.status === 'running';
@@ -14,7 +38,6 @@ export default function Chat({ session, onSend, now }) {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [session.messages, session.liveSteps, session.liveText]);
 
-  // reset input when switching sessions
   useEffect(() => { setInput(''); }, [session.id]);
 
   function send() {
@@ -32,6 +55,7 @@ export default function Chat({ session, onSend, now }) {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
+      {/* Header */}
       <div style={{
         padding: '12px 20px', borderBottom: '1px solid #1e293b',
         display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
@@ -51,11 +75,12 @@ export default function Chat({ session, onSend, now }) {
               {session.stepCount > 0 ? `${session.stepCount} steps · ` : ''}{elapsed}
             </span>
           )}
-          <span style={{ fontSize: 11, color: '#334155' }}>gemini-2.5-flash</span>
+          <span style={{ fontSize: 11, color: '#334155' }}>gemini-3.5-flash</span>
         </div>
         <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
       </div>
 
+      {/* Messages */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
         {session.messages.length === 0 && !streaming && (
           <div style={{ color: '#475569', textAlign: 'center', marginTop: 80, fontSize: 14 }}>
@@ -80,8 +105,29 @@ export default function Chat({ session, onSend, now }) {
         <div ref={bottomRef} />
       </div>
 
+      {/* Input area */}
       <div style={{ padding: '12px 24px', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
+        <SessionPrompt value={session.system_prompt} onChange={onSaveSystemPrompt} />
         <FileUpload sessionId={session.id} />
+
+        {/* Template buttons */}
+        <div style={{ display: 'flex', gap: 6, marginBottom: 8, flexWrap: 'wrap' }}>
+          {TEMPLATES.map(t => (
+            <button
+              key={t.label}
+              onClick={() => setInput(t.text)}
+              disabled={streaming}
+              style={{
+                background: 'transparent', border: '1px solid #1e293b',
+                borderRadius: 5, color: '#475569', padding: '3px 9px',
+                cursor: streaming ? 'not-allowed' : 'pointer', fontSize: 11,
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+
         <div style={{ display: 'flex', gap: 8 }}>
           <textarea
             value={input}

@@ -234,8 +234,8 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         sandbox.git_exec('git config user.name "Gemini Agent"', clone_dir)
         sandbox.git_exec('git config user.email "agent@gemini.local"', clone_dir)
 
-        files = [f.name for f in clone_dir.iterdir()][:20]
-        return f'Cloned {slug} into {repo_name}/\nTop-level files: {", ".join(files)}'
+        context = gh.get_repo_context(clone_dir)
+        return f'Cloned {slug} into {repo_name}/\n\n{context}'
 
     elif tool_name == 'git_branch':
         git_root = gh.find_git_root(session_dir)

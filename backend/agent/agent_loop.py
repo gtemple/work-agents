@@ -4,7 +4,7 @@ from google import genai
 from google.genai import types
 from . import tools
 
-SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, and interact with GitHub repositories.
+BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, and interact with GitHub repositories.
 
 When working on a task:
 - Always explain what you're doing before and after each step
@@ -18,6 +18,13 @@ For GitHub tasks:
 - Use git_status and git_diff to review changes before committing
 - Write clear commit messages and PR descriptions that explain what changed and why
 - After pushing, use create_pr to open the pull request"""
+
+
+def _compose_system_prompt(session) -> str:
+    parts = [BASE_SYSTEM_PROMPT]
+    if session.system_prompt.strip():
+        parts.append(f"## Session context (set by user)\n{session.system_prompt.strip()}")
+    return '\n\n'.join(parts)
 
 
 def _session_dir(session_id) -> Path:
@@ -59,7 +66,7 @@ def run(session, prompt: str):
             model=settings.GEMINI_MODEL,
             contents=history,
             config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
+                system_instruction=_compose_system_prompt(session),
                 tools=[_build_tool_config()],
             ),
         )
