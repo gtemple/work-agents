@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 from . import tools
 from . import approval
+from . import token_store
 
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
 
@@ -107,6 +108,7 @@ def run(session, prompt: str, skip_gated: bool = False):
             u = response.usage_metadata
             total_input_tokens += getattr(u, 'prompt_token_count', 0) or 0
             total_output_tokens += getattr(u, 'candidates_token_count', 0) or 0
+            token_store.update(str(session.id), total_input_tokens, total_output_tokens)
             yield {'type': 'tokens', 'payload': {
                 'input': total_input_tokens,
                 'output': total_output_tokens,

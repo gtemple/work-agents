@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getTokens } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -54,10 +54,10 @@ export default function App() {
   }, [toasts, dismissToast]);
 
   useEffect(() => {
-    listSessions().then(({ sessions: list }) => {
+    Promise.all([listSessions(), getTokens()]).then(([{ sessions: list }, tokenLedger]) => {
       if (!list.length) return;
       const loaded = list.map((s, i) => {
-        const stored = JSON.parse(localStorage.getItem(`tokens_${s.id}`) || 'null');
+        const stored = tokenLedger[s.id];
         return {
           ...makeSessionState(s, i),
           inputTokens: stored?.input ?? 0,
@@ -127,7 +127,6 @@ export default function App() {
           s.id === sessionId ? { ...s, liveSteps: acc.steps } : s
         ));
       } else if (event.type === 'tokens') {
-        localStorage.setItem(`tokens_${sessionId}`, JSON.stringify({ input: event.payload.input, output: event.payload.output }));
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, inputTokens: event.payload.input, outputTokens: event.payload.output }

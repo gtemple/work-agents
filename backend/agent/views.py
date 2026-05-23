@@ -5,6 +5,7 @@ from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
 from .models import Session, Message, Memory, Schedule
+from . import token_store
 from . import agent_loop
 from . import approval as approval_mod
 
@@ -145,6 +146,13 @@ def memory_detail(request, key):
     data = json.loads(request.body or '{}')
     obj, _ = Memory.objects.update_or_create(key=key, defaults={'value': data.get('value', '')})
     return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})
+
+
+# ── Tokens ────────────────────────────────────────────────────────────────────
+
+@require_http_methods(['GET'])
+def get_tokens(request):
+    return JsonResponse(token_store.load_all())
 
 
 # ── Schedules ─────────────────────────────────────────────────────────────────
