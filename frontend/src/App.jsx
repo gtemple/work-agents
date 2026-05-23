@@ -21,6 +21,10 @@ function makeSessionState(s, colorIndex) {
     inputTokens: 0,
     outputTokens: 0,
     pendingApproval: null,
+    is_work: s.is_work ?? false,
+    linear_issue_key: s.linear_issue_key ?? '',
+    linear_issue_url: s.linear_issue_url ?? '',
+    linear_task_type: s.linear_task_type ?? '',
   };
 }
 
@@ -160,9 +164,13 @@ export default function App() {
           }]);
         }
         delete esRefs.current[sessionId];
+      } else if (event.type === 'plan_ready') {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId ? { ...s, pendingApproval: { ...event.payload, event_type: 'plan' } } : s
+        ));
       } else if (event.type === 'approval_required') {
         setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, pendingApproval: event.payload } : s
+          s.id === sessionId ? { ...s, pendingApproval: { ...event.payload, event_type: 'action' } } : s
         ));
       } else if (event.type === 'approval_granted' || event.type === 'approval_rejected') {
         setSessions(prev => prev.map(s =>

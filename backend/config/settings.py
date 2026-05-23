@@ -56,3 +56,5 @@ GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
 GEMINI_MODEL = 'gemini-3.5-flash'
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
 GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME', '')
+LINEAR_API_KEY = os.environ.get('LINEAR_API_KEY', '')
+LINEAR_WEBHOOK_SECRET = os.environ.get('LINEAR_WEBHOOK_SECRET', '')

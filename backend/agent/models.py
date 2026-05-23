@@ -3,12 +3,25 @@ from django.db import models
 
 
 class Session(models.Model):
+    TASK_TYPE_CHOICES = [
+        ('feature', 'Feature'),
+        ('bug_fix', 'Bug Fix'),
+        ('test', 'Test'),
+        ('refactor', 'Refactor'),
+    ]
+
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255, blank=True)
     system_prompt = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     input_tokens = models.IntegerField(default=0)
     output_tokens = models.IntegerField(default=0)
+    # Linear work session fields
+    is_work = models.BooleanField(default=False)
+    linear_issue_id = models.CharField(max_length=255, blank=True, unique=True, null=True)
+    linear_issue_key = models.CharField(max_length=32, blank=True)
+    linear_issue_url = models.URLField(blank=True)
+    linear_task_type = models.CharField(max_length=32, blank=True, choices=TASK_TYPE_CHOICES)
 
     class Meta:
         ordering = ['-created_at']

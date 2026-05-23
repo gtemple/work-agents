@@ -4,6 +4,7 @@ import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
 import SessionPrompt from './SessionPrompt';
 import ApprovalGate from './ApprovalGate';
+import PlanCard from './PlanCard';
 import { formatElapsed, estimateCost, formatCost, formatTokens } from '../utils';
 
 const TEMPLATES = [
@@ -76,6 +77,19 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, onApprove, o
         <span style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9' }}>
           {session.title || 'New agent'}
         </span>
+        {session.linear_issue_key && (
+          <a
+            href={session.linear_issue_url || '#'}
+            target="_blank" rel="noreferrer"
+            style={{
+              fontSize: 11, color: '#3b82f6', background: '#0d1f3c',
+              border: '1px solid #3b82f633', borderRadius: 4,
+              padding: '2px 7px', textDecoration: 'none', fontWeight: 500,
+            }}
+          >
+            {session.linear_issue_key}
+          </a>
+        )}
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           {streaming && elapsed && (
             <span style={{ fontSize: 11, color: session.color, fontVariantNumeric: 'tabular-nums' }}>
@@ -104,7 +118,9 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, onApprove, o
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginBottom: 16 }}>
             <AgentSteps steps={session.liveSteps} live={true} />
             {session.pendingApproval && (
-              <ApprovalGate approval={session.pendingApproval} onApprove={onApprove} onReject={onReject} />
+              session.pendingApproval.event_type === 'plan'
+                ? <PlanCard plan={session.pendingApproval} onApprove={onApprove} onReject={onReject} />
+                : <ApprovalGate approval={session.pendingApproval} onApprove={onApprove} onReject={onReject} />
             )}
             {session.liveText && (
               <div style={{

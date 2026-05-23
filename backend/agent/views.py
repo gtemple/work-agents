@@ -1,3 +1,5 @@
+import hashlib
+import hmac
 import json
 from pathlib import Path
 from django.conf import settings
@@ -61,6 +63,10 @@ def list_sessions(request):
             'id': str(s.id), 'title': s.title, 'system_prompt': s.system_prompt,
             'created_at': s.created_at.isoformat(),
             'input_tokens': s.input_tokens, 'output_tokens': s.output_tokens,
+            'is_work': s.is_work,
+            'linear_issue_key': s.linear_issue_key,
+            'linear_issue_url': s.linear_issue_url,
+            'linear_task_type': s.linear_task_type,
         }
         for s in sessions
     ]})
@@ -202,6 +208,67 @@ def get_stats(request):
             }
             for row in daily
         ],
+    })
+
+
+# ── Linear webhook ────────────────────────────────────────────────────────────
+
+TASK_TYPE_LABELS = {
+    'bug': 'bug_fix',
+    'fix': 'bug_fix',
+    'test': 'test',
+    'refactor': 'refactor',
+    'chore': 'refactor',
+}
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def linear_webhook(request):
+    secret = settings.LINEAR_WEBHOOK_SECRET
+    if secret:
+        sig = request.headers.get('Linear-Signature', '')
+        expected = hmac.new(secret.encode(), request.body, hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(sig, expected):
+            return JsonResponse({'error': 'Invalid signature'}, status=401)
+
+    data = json.loads(request.body or '{}')
+    if data.get('type') != 'Issue' or data.get('action') not in ('create', 'update'):
+        return JsonResponse({'received': True, 'processed': False})
+
+    issue = data.get('data', {})
+    labels = [l.get('name', '').lower() for l in (issue.get('labels') or [])]
+
+    task_type = 'feature'
+    for label_word, t in TASK_TYPE_LABELS.items():
+        if any(label_word in l for l in labels):
+            task_type = t
+            break
+
+    issue_id = issue.get('id')
+    issue_key = issue.get('identifier', '')
+    title = issue.get('title', '')
+    description = issue.get('description', '') or ''
+    url = issue.get('url', '')
+
+    if not issue_id:
+        return JsonResponse({'received': True, 'processed': False, 'reason': 'No issue id'})
+
+    session, created = Session.objects.update_or_create(
+        linear_issue_id=issue_id,
+        defaults={
+            'title': f'{issue_key}: {title}',
+            'is_work': True,
+            'linear_issue_key': issue_key,
+            'linear_issue_url': url,
+            'linear_task_type': task_type,
+            'system_prompt': f'**{issue_key} — {title}**\n\n{description}'.strip(),
+        },
+    )
+
+    return JsonResponse({
+        'received': True, 'processed': True,
+        'session_id': str(session.id), 'created': created,
     })
 
 

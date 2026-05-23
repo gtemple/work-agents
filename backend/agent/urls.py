@@ -9,6 +9,7 @@ urlpatterns = [
     path('sessions/<uuid:session_id>/stream/', views.stream_agent),
     path('sessions/<uuid:session_id>/approve/', views.approve_action),
     path('stats/', views.get_stats),
+    path('webhooks/linear/', views.linear_webhook),
     path('memory/', views.list_memories),
     path('memory/<str:key>/', views.memory_detail),
     path('schedules/', views.list_schedules),

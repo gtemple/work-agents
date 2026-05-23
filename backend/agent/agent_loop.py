@@ -6,6 +6,7 @@ from . import tools
 from . import approval
 
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
+PLAN_TOOLS = {'submit_plan'}
 
 BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, search the web, interact with GitHub repositories, and read/write persistent memory.
 
@@ -27,18 +28,61 @@ For memory:
 - Use memory_read or memory_list to recall stored knowledge before starting a task
 - Store things like: architectural decisions, known gotchas, stack versions, team conventions"""
 
+TASK_TYPE_INSTRUCTIONS = {
+    'bug_fix': """## Bug fix guidelines
+- First identify and explain the root cause before touching any code
+- Add a comment in the code explaining why the bug occurred
+- Consider edge cases that might cause similar bugs
+- Add error handling if it is missing
+- Test the fix against the original bug report""",
+
+    'feature': """## Feature development guidelines
+- Check if similar functionality exists elsewhere and follow that pattern
+- Consider performance implications (database queries, API calls, rendering)
+- Plan for edge cases: empty states, loading states, error states
+- Keep the same API/interface — don't break dependent code""",
+
+    'refactor': """## Refactoring guidelines
+- Preserve ALL existing functionality — do not change behaviour
+- Improve code organisation and readability
+- Reduce code duplication
+- Keep the same public API — don't break dependent code
+- Focus on making the code more maintainable""",
+
+    'test': """## Test development guidelines
+- Cover happy path, edge cases, and error conditions
+- Test boundary values and null/undefined cases
+- Use descriptive test names that explain what is being tested
+- Follow existing test patterns in the project
+- Mock external dependencies (API calls, database)""",
+}
+
+WORK_SYSTEM_PROMPT_PREFIX = """You are working on a Linear issue for the Purposely codebase.
+
+IMPORTANT: Before writing any code you MUST:
+1. Clone the repository with clone_repo("purposely/purposely-web")
+2. Explore the relevant files with list_files and bash("find . -type f -name '*.py' | head -40") etc.
+3. Read the key files that are likely to change
+4. Call submit_plan with a concrete plan listing exactly which files you will change and the ordered steps
+5. Wait for plan approval, then proceed with implementation
+
+Do not skip the planning step. The user needs to review and approve your plan before you write code."""
+
 
 def _compose_system_prompt(session) -> str:
     from .models import Memory
     parts = [BASE_SYSTEM_PROMPT]
 
+    if session.is_work:
+        parts.append(WORK_SYSTEM_PROMPT_PREFIX)
+        if session.linear_task_type and session.linear_task_type in TASK_TYPE_INSTRUCTIONS:
+            parts.append(TASK_TYPE_INSTRUCTIONS[session.linear_task_type])
+
     if settings.GITHUB_USERNAME:
         parts.append(
             f"## GitHub identity\n"
             f"The user's GitHub username is `{settings.GITHUB_USERNAME}`. "
-            f"When they say \"my repo\", \"my account\", or similar, default to this username. "
-            f"List repos with: bash(\"curl -s -H 'Authorization: Bearer $GITHUB_TOKEN' "
-            f"'https://api.github.com/users/{settings.GITHUB_USERNAME}/repos?per_page=100&sort=updated'\")"
+            f"When they say \"my repo\", \"my account\", or similar, default to this username."
         )
 
     if session.system_prompt.strip():
@@ -64,6 +108,15 @@ def _build_tool_config():
     return types.Tool(function_declarations=[
         types.FunctionDeclaration(**decl) for decl in tools.DECLARATIONS
     ])
+
+
+def _post_linear_comment(session, text: str):
+    if session.is_work and session.linear_issue_id:
+        try:
+            from . import linear
+            linear.post_comment(session.linear_issue_id, text)
+        except Exception:
+            pass
 
 
 def run(session, prompt: str, skip_gated: bool = False):
@@ -102,7 +155,6 @@ def run(session, prompt: str, skip_gated: bool = False):
             ),
         )
 
-        # Accumulate token usage
         if response.usage_metadata:
             u = response.usage_metadata
             total_input_tokens += getattr(u, 'prompt_token_count', 0) or 0
@@ -137,7 +189,6 @@ def run(session, prompt: str, skip_gated: bool = False):
                     data=step['data'],
                     order=i,
                 )
-            # Persist token counts to DB
             if total_input_tokens or total_output_tokens:
                 TokenUsage.objects.create(
                     session=session,
@@ -147,6 +198,9 @@ def run(session, prompt: str, skip_gated: bool = False):
                 session.input_tokens = session.input_tokens + total_input_tokens
                 session.output_tokens = session.output_tokens + total_output_tokens
                 session.save(update_fields=['input_tokens', 'output_tokens'])
+
+            _post_linear_comment(session, f'✅ Agent completed turn.\n\n{text[:1000]}')
+
             yield {'type': 'done', 'payload': {
                 'message_id': assistant_msg.id,
                 'input_tokens': total_input_tokens,
@@ -162,7 +216,17 @@ def run(session, prompt: str, skip_gated: bool = False):
             tool_name = fc.name
             args = dict(fc.args)
 
-            if tool_name in GATED_TOOLS and not skip_gated:
+            if tool_name in PLAN_TOOLS:
+                yield {'type': 'plan_ready', 'payload': args}
+                approved = approval.wait_for_approval(session.id)
+                if not approved:
+                    result_text = 'Plan rejected by the user. Revise your approach and submit a new plan.'
+                    yield {'type': 'approval_rejected', 'payload': {'tool': tool_name}}
+                else:
+                    result_text = 'Plan approved. Proceed with implementation.'
+                    yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
+
+            elif tool_name in GATED_TOOLS and not skip_gated:
                 yield {'type': 'approval_required', 'payload': {'tool': tool_name, 'args': args}}
                 approved = approval.wait_for_approval(session.id)
                 if not approved:
@@ -175,6 +239,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                     result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
                     yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                     agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
+
             else:
                 yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                 agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})

@@ -266,6 +266,38 @@ DECLARATIONS = [
             'required': ['title', 'body', 'base_branch'],
         },
     },
+    {
+        'name': 'submit_plan',
+        'description': (
+            'For work tasks from Linear: after exploring the codebase, call this to submit '
+            'your implementation plan for user review before writing any code. '
+            'The user will approve or reject before you proceed.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'summary': {
+                    'type': 'string',
+                    'description': '2-3 sentence summary of the approach',
+                },
+                'files_to_change': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'List of file paths that will be created or modified',
+                },
+                'steps': {
+                    'type': 'array',
+                    'items': {'type': 'string'},
+                    'description': 'Ordered implementation steps',
+                },
+                'risks': {
+                    'type': 'string',
+                    'description': 'Potential risks or things to watch out for',
+                },
+            },
+            'required': ['summary', 'files_to_change', 'steps'],
+        },
+    },
 ]
 
 
@@ -423,6 +455,10 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         from .models import Memory
         deleted, _ = Memory.objects.filter(key=args['key']).delete()
         return f'Deleted memory: {args["key"]}' if deleted else f'No memory found for key: {args["key"]}'
+
+    elif tool_name == 'submit_plan':
+        # Handled specially in agent_loop — dispatch should never be called for this
+        return 'Plan submitted.'
 
     elif tool_name == 'web_search':
         num = min(int(args.get('num_results', 6)), 10)
