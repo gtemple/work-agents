@@ -7,6 +7,8 @@ class Session(models.Model):
     title = models.CharField(max_length=255, blank=True)
     system_prompt = models.TextField(blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
+    input_tokens = models.IntegerField(default=0)
+    output_tokens = models.IntegerField(default=0)
 
     class Meta:
         ordering = ['-created_at']
@@ -58,6 +60,17 @@ class Schedule(models.Model):
 
     class Meta:
         ordering = ['next_run']
+
+
+class TokenUsage(models.Model):
+    """One row per completed agent turn. Enables time-series stats."""
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='token_usage')
+    input_tokens = models.IntegerField()
+    output_tokens = models.IntegerField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['created_at']
 
 
 class Memory(models.Model):

@@ -4,8 +4,7 @@ from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory, Schedule
-from . import token_store
+from .models import Session, Message, Memory, Schedule, TokenUsage
 from . import agent_loop
 from . import approval as approval_mod
 
@@ -58,7 +57,11 @@ def get_session(request, session_id):
 def list_sessions(request):
     sessions = Session.objects.all()
     return JsonResponse({'sessions': [
-        {'id': str(s.id), 'title': s.title, 'system_prompt': s.system_prompt, 'created_at': s.created_at.isoformat()}
+        {
+            'id': str(s.id), 'title': s.title, 'system_prompt': s.system_prompt,
+            'created_at': s.created_at.isoformat(),
+            'input_tokens': s.input_tokens, 'output_tokens': s.output_tokens,
+        }
         for s in sessions
     ]})
 
@@ -148,11 +151,58 @@ def memory_detail(request, key):
     return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})
 
 
-# ── Tokens ────────────────────────────────────────────────────────────────────
+# ── Stats ─────────────────────────────────────────────────────────────────────
 
 @require_http_methods(['GET'])
-def get_tokens(request):
-    return JsonResponse(token_store.load_all())
+def get_stats(request):
+    from django.db.models import Sum, Count
+    from django.db.models.functions import TruncDate
+
+    totals = TokenUsage.objects.aggregate(
+        total_input=Sum('input_tokens'),
+        total_output=Sum('output_tokens'),
+        total_turns=Count('id'),
+    )
+
+    top_sessions = (
+        Session.objects
+        .filter(input_tokens__gt=0)
+        .order_by('-input_tokens', '-output_tokens')[:10]
+    )
+
+    daily = (
+        TokenUsage.objects
+        .annotate(date=TruncDate('created_at'))
+        .values('date')
+        .annotate(input=Sum('input_tokens'), output=Sum('output_tokens'), turns=Count('id'))
+        .order_by('date')
+    )
+
+    return JsonResponse({
+        'summary': {
+            'total_input_tokens': totals['total_input'] or 0,
+            'total_output_tokens': totals['total_output'] or 0,
+            'total_turns': totals['total_turns'] or 0,
+            'total_sessions': Session.objects.count(),
+        },
+        'top_sessions': [
+            {
+                'id': str(s.id), 'title': s.title or 'Untitled',
+                'input_tokens': s.input_tokens, 'output_tokens': s.output_tokens,
+                'created_at': s.created_at.isoformat(),
+            }
+            for s in top_sessions
+        ],
+        'daily': [
+            {
+                'date': row['date'].isoformat(),
+                'input_tokens': row['input'],
+                'output_tokens': row['output'],
+                'turns': row['turns'],
+            }
+            for row in daily
+        ],
+    })
 
 
 # ── Schedules ─────────────────────────────────────────────────────────────────

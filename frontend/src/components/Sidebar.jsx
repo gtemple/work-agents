@@ -21,7 +21,7 @@ function StatusDot({ status, color }) {
   );
 }
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, globalInputTokens, globalOutputTokens, now }) {
+export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, now }) {
   const [search, setSearch] = useState('');
   const filtered = search.trim()
     ? sessions.filter(s => (s.title || 'New agent').toLowerCase().includes(search.toLowerCase()))
@@ -117,20 +117,13 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
       </div>
 
       <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b', display: 'flex', gap: 6 }}>
-        <button onClick={onMemory} style={{
-          flex: 1, background: 'none', border: '1px solid #1e293b',
-          borderRadius: 6, color: '#475569', padding: '6px 0',
-          cursor: 'pointer', fontSize: 12, textAlign: 'center',
-        }}>
-          Memory
-        </button>
-        <button onClick={onSchedules} style={{
-          flex: 1, background: 'none', border: '1px solid #1e293b',
-          borderRadius: 6, color: '#475569', padding: '6px 0',
-          cursor: 'pointer', fontSize: 12, textAlign: 'center',
-        }}>
-          Schedules
-        </button>
+        {[['Memory', onMemory], ['Schedules', onSchedules], ['Stats', onStats]].map(([label, fn]) => (
+          <button key={label} onClick={fn} style={{
+            flex: 1, background: 'none', border: '1px solid #1e293b',
+            borderRadius: 6, color: '#475569', padding: '6px 0',
+            cursor: 'pointer', fontSize: 11, textAlign: 'center',
+          }}>{label}</button>
+        ))}
       </div>
 
       <style>{`

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getTokens } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -7,6 +7,7 @@ import ActivityFeed from './components/ActivityFeed';
 import Toast from './components/Toast';
 import MemoryPanel from './components/MemoryPanel';
 import SchedulePanel from './components/SchedulePanel';
+import StatsPanel from './components/StatsPanel';
 
 const PALETTE = ['#818cf8', '#34d399', '#fb923c', '#f472b6', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
 
@@ -31,6 +32,7 @@ export default function App() {
   const [now, setNow] = useState(Date.now());
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [schedulesOpen, setSchedulesOpen] = useState(false);
+  const [statsOpen, setStatsOpen] = useState(false);
   const esRefs = useRef({});
   const sessionsRef = useRef(sessions);
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -54,16 +56,13 @@ export default function App() {
   }, [toasts, dismissToast]);
 
   useEffect(() => {
-    Promise.all([listSessions(), getTokens()]).then(([{ sessions: list }, tokenLedger]) => {
+    listSessions().then(({ sessions: list }) => {
       if (!list.length) return;
-      const loaded = list.map((s, i) => {
-        const stored = tokenLedger[s.id];
-        return {
-          ...makeSessionState(s, i),
-          inputTokens: stored?.input ?? 0,
-          outputTokens: stored?.output ?? 0,
-        };
-      });
+      const loaded = list.map((s, i) => ({
+        ...makeSessionState(s, i),
+        inputTokens: s.input_tokens ?? 0,
+        outputTokens: s.output_tokens ?? 0,
+      }));
       setSessions(loaded);
       setActiveId(loaded[0].id);
       getSession(loaded[0].id).then(data => {
@@ -202,7 +201,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
           ? <Chat
@@ -220,6 +219,7 @@ export default function App() {
       <Toast toasts={toasts} onDismiss={dismissToast} onSelect={switchTo} />
       {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
       {schedulesOpen && <SchedulePanel onClose={() => setSchedulesOpen(false)} />}
+      {statsOpen && <StatsPanel onClose={() => setStatsOpen(false)} />}
     </div>
   );
 }

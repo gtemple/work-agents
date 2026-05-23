@@ -8,7 +8,7 @@ urlpatterns = [
     path('sessions/<uuid:session_id>/files/', views.upload_files),
     path('sessions/<uuid:session_id>/stream/', views.stream_agent),
     path('sessions/<uuid:session_id>/approve/', views.approve_action),
-    path('tokens/', views.get_tokens),
+    path('stats/', views.get_stats),
     path('memory/', views.list_memories),
     path('memory/<str:key>/', views.memory_detail),
     path('schedules/', views.list_schedules),

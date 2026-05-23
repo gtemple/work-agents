@@ -4,7 +4,6 @@ from google import genai
 from google.genai import types
 from . import tools
 from . import approval
-from . import token_store
 
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
 
@@ -108,7 +107,6 @@ def run(session, prompt: str, skip_gated: bool = False):
             u = response.usage_metadata
             total_input_tokens += getattr(u, 'prompt_token_count', 0) or 0
             total_output_tokens += getattr(u, 'candidates_token_count', 0) or 0
-            token_store.update(str(session.id), total_input_tokens, total_output_tokens)
             yield {'type': 'tokens', 'payload': {
                 'input': total_input_tokens,
                 'output': total_output_tokens,
@@ -126,7 +124,7 @@ def run(session, prompt: str, skip_gated: bool = False):
             text = ''.join(p.text for p in content.parts if p.text)
             yield {'type': 'assistant_text', 'payload': {'text': text}}
 
-            from .models import Message, AgentStep
+            from .models import Message, AgentStep, TokenUsage
             assistant_msg = Message.objects.create(
                 session=session,
                 role='assistant',
@@ -139,6 +137,16 @@ def run(session, prompt: str, skip_gated: bool = False):
                     data=step['data'],
                     order=i,
                 )
+            # Persist token counts to DB
+            if total_input_tokens or total_output_tokens:
+                TokenUsage.objects.create(
+                    session=session,
+                    input_tokens=total_input_tokens,
+                    output_tokens=total_output_tokens,
+                )
+                session.input_tokens = session.input_tokens + total_input_tokens
+                session.output_tokens = session.output_tokens + total_output_tokens
+                session.save(update_fields=['input_tokens', 'output_tokens'])
             yield {'type': 'done', 'payload': {
                 'message_id': assistant_msg.id,
                 'input_tokens': total_input_tokens,

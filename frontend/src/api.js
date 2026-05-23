@@ -61,8 +61,8 @@ export async function deleteMemory(key) {
   await fetch(`/api/memory/${encodeURIComponent(key)}/`, { method: 'DELETE' });
 }
 
-export async function getTokens() {
-  const res = await fetch('/api/tokens/');
+export async function getStats() {
+  const res = await fetch('/api/stats/');
   return res.json();
 }
 
