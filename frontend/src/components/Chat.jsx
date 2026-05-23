@@ -2,13 +2,13 @@ import { useState, useEffect, useRef } from 'react';
 import Message from './Message';
 import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
+import { formatElapsed } from '../utils';
 
-// session: { id, title, messages, liveSteps, liveText, status }
-// onSend(prompt): kicks off the agent in App-level state
-export default function Chat({ session, onSend }) {
+export default function Chat({ session, onSend, now }) {
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const streaming = session.status === 'running';
+  const elapsed = streaming ? formatElapsed(session.startedAt, now) : null;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -36,10 +36,24 @@ export default function Chat({ session, onSend }) {
         padding: '12px 20px', borderBottom: '1px solid #1e293b',
         display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
       }}>
+        <span style={{
+          width: 8, height: 8, borderRadius: '50%', flexShrink: 0,
+          background: session.color || '#475569',
+          boxShadow: streaming ? `0 0 0 2px ${session.color}44` : 'none',
+          animation: streaming ? 'pulse 1.2s ease-in-out infinite' : 'none',
+        }} />
         <span style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9' }}>
           {session.title || 'New agent'}
         </span>
-        <span style={{ fontSize: 11, color: '#475569', marginLeft: 'auto' }}>gemini-2.5-flash</span>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {streaming && elapsed && (
+            <span style={{ fontSize: 11, color: session.color, fontVariantNumeric: 'tabular-nums' }}>
+              {session.stepCount > 0 ? `${session.stepCount} steps · ` : ''}{elapsed}
+            </span>
+          )}
+          <span style={{ fontSize: 11, color: '#334155' }}>gemini-2.5-flash</span>
+        </div>
+        <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>

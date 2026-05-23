@@ -38,11 +38,19 @@ export default function AgentSteps({ steps, live }) {
         borderLeft: '3px solid #334155',
       }}>
         {steps.map((step, i) =>
-          step.step_type === 'tool_call'
-            ? <ToolCall key={i} data={step.data} />
-            : <ToolResult key={i} data={step.data} />
+          <div key={i} style={{ animation: live ? 'stepIn 0.18s ease-out' : 'none' }}>
+            {step.step_type === 'tool_call'
+              ? <ToolCall data={step.data} />
+              : <ToolResult data={step.data} />}
+          </div>
         )}
       </div>
+      <style>{`
+        @keyframes stepIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
     </details>
   );
 }
