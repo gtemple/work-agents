@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate, useParams, useLocation, Routes, Route } from 'react-router-dom';
 import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
@@ -28,15 +29,42 @@ function makeSessionState(s, colorIndex) {
   };
 }
 
+function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, now }) {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const session = sessions.find(s => s.id === id) ?? null;
+
+  useEffect(() => {
+    if (!session) return;
+    if (!session.messages.length && session.status === 'idle') {
+      getSession(id).then(data => {
+        setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: data.messages } : s));
+      });
+    }
+  }, [id]);
+
+  if (!session) return null;
+  return (
+    <Chat
+      session={session}
+      onSend={(prompt) => send(session.id, prompt)}
+      onSaveSystemPrompt={(v) => saveSystemPrompt(session.id, v)}
+      onApprove={() => approve(session.id, true)}
+      onReject={() => approve(session.id, false)}
+      now={now}
+    />
+  );
+}
+
 export default function App() {
   const [sessions, setSessions] = useState([]);
-  const [activeId, setActiveId] = useState(null);
   const [feed, setFeed] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [schedulesOpen, setSchedulesOpen] = useState(false);
   const [statsOpen, setStatsOpen] = useState(false);
+  const navigate = useNavigate();
   const esRefs = useRef({});
   const sessionsRef = useRef(sessions);
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -68,10 +96,6 @@ export default function App() {
         outputTokens: s.output_tokens ?? 0,
       }));
       setSessions(loaded);
-      setActiveId(loaded[0].id);
-      getSession(loaded[0].id).then(data => {
-        setSessions(prev => prev.map(s => s.id === data.id ? { ...s, messages: data.messages } : s));
-      });
     });
   }, []);
 
@@ -89,21 +113,12 @@ export default function App() {
   const newAgent = useCallback(async () => {
     const s = await createSession();
     setSessions(prev => [makeSessionState(s, prev.length), ...prev]);
-    setActiveId(s.id);
-  }, []);
+    navigate(`/session/${s.id}`);
+  }, [navigate]);
 
   const switchTo = useCallback((id) => {
-    setActiveId(id);
-    setSessions(prev => {
-      const s = prev.find(s => s.id === id);
-      if (s && !s.messages.length && s.status === 'idle') {
-        getSession(id).then(data => {
-          setSessions(p => p.map(s => s.id === id ? { ...s, messages: data.messages } : s));
-        });
-      }
-      return prev;
-    });
-  }, []);
+    navigate(`/session/${id}`);
+  }, [navigate]);
 
   const send = useCallback((sessionId, prompt) => {
     const session = sessionsRef.current.find(s => s.id === sessionId);
@@ -166,7 +181,7 @@ export default function App() {
           setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: data.title } : s));
         });
         // toast if user is looking elsewhere
-        if (activeIdRef.current !== sessionId) {
+        if (!window.location.pathname.includes(sessionId)) {
           const t = sessionsRef.current.find(s => s.id === sessionId);
           setToasts(prev => [...prev, {
             id: Math.random(), color,
@@ -211,28 +226,19 @@ export default function App() {
     updateSession(sessionId, { system_prompt: value });
   }, []);
 
-  const activeIdRef = useRef(activeId);
-  useEffect(() => { activeIdRef.current = activeId; }, [activeId]);
-
-  const active = sessions.find(s => s.id === activeId) ?? null;
+  const location = useLocation();
+  const activeId = location.pathname.match(/\/session\/([^/]+)/)?.[1] ?? null;
   const globalInputTokens = sessions.reduce((sum, s) => sum + (s.inputTokens || 0), 0);
   const globalOutputTokens = sessions.reduce((sum, s) => sum + (s.outputTokens || 0), 0);
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => navigate('/')} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
-        {active
-          ? <Chat
-              session={active}
-              onSend={(prompt) => send(active.id, prompt)}
-              onSaveSystemPrompt={(v) => saveSystemPrompt(active.id, v)}
-              onApprove={() => approve(active.id, true)}
-              onReject={() => approve(active.id, false)}
-              now={now}
-            />
-          : <AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} />
-        }
+        <Routes>
+          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} />} />
+          <Route path="/session/:id" element={<SessionView sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
+        </Routes>
       </div>
       <ActivityFeed events={feed} now={now} />
       <Toast toasts={toasts} onDismiss={dismissToast} onSelect={switchTo} />
