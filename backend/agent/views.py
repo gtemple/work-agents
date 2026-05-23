@@ -81,6 +81,10 @@ def stream_agent(request, session_id):
 
     Message.objects.create(session=session, role='user', content=prompt)
 
+    if not session.title:
+        session.title = prompt[:60]
+        session.save(update_fields=['title'])
+
     def event_stream():
         try:
             for event in agent_loop.run(session, prompt):

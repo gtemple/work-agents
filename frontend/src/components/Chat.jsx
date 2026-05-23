@@ -1,65 +1,27 @@
 import { useState, useEffect, useRef } from 'react';
-import { createSession, getSession, streamAgent } from '../api';
 import Message from './Message';
 import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
 
-export default function Chat() {
-  const [session, setSession] = useState(null);
-  const [messages, setMessages] = useState([]);
+// session: { id, title, messages, liveSteps, liveText, status }
+// onSend(prompt): kicks off the agent in App-level state
+export default function Chat({ session, onSend }) {
   const [input, setInput] = useState('');
-  const [streaming, setStreaming] = useState(false);
-  const [liveSteps, setLiveSteps] = useState([]);
-  const [liveText, setLiveText] = useState('');
   const bottomRef = useRef(null);
-
-  useEffect(() => {
-    createSession().then(s => setSession(s));
-  }, []);
+  const streaming = session.status === 'running';
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, liveSteps, liveText]);
+  }, [session.messages, session.liveSteps, session.liveText]);
+
+  // reset input when switching sessions
+  useEffect(() => { setInput(''); }, [session.id]);
 
   function send() {
-    if (!input.trim() || streaming || !session) return;
-    const prompt = input.trim();
+    if (!input.trim() || streaming) return;
+    onSend(input.trim());
     setInput('');
-    setStreaming(true);
-    setLiveSteps([]);
-    setLiveText('');
-
-    setMessages(prev => [...prev, { role: 'user', content: prompt, steps: [] }]);
-
-    streamAgent(session.id, prompt, (event) => {
-      if (event.type === 'tool_call') {
-        setLiveSteps(prev => [...prev, { step_type: 'tool_call', data: event.payload }]);
-      } else if (event.type === 'tool_result') {
-        setLiveSteps(prev => [...prev, { step_type: 'tool_result', data: event.payload }]);
-      } else if (event.type === 'assistant_text') {
-        setLiveText(event.payload.text);
-      } else if (event.type === 'done') {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: liveTextRef.current, steps: liveStepsRef.current },
-        ]);
-        setLiveSteps([]);
-        setLiveText('');
-        setStreaming(false);
-      } else if (event.type === 'error') {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: `Error: ${event.payload.message}`, steps: [] },
-        ]);
-        setStreaming(false);
-      }
-    });
   }
-
-  const liveStepsRef = useRef(liveSteps);
-  const liveTextRef = useRef(liveText);
-  useEffect(() => { liveStepsRef.current = liveSteps; }, [liveSteps]);
-  useEffect(() => { liveTextRef.current = liveText; }, [liveText]);
 
   function onKeyDown(e) {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -69,38 +31,34 @@ export default function Chat() {
   }
 
   return (
-    <div style={{
-      display: 'flex', flexDirection: 'column', height: '100vh',
-      background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif',
-    }}>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100vh' }}>
       <div style={{
         padding: '12px 20px', borderBottom: '1px solid #1e293b',
-        display: 'flex', alignItems: 'center', gap: 10,
+        display: 'flex', alignItems: 'center', gap: 10, flexShrink: 0,
       }}>
-        <span style={{ fontSize: 18, fontWeight: 600 }}>Gemini Agent</span>
-        <span style={{ fontSize: 11, color: '#475569', marginLeft: 'auto' }}>
-          gemini-2.5-flash
+        <span style={{ fontSize: 15, fontWeight: 600, color: '#f1f5f9' }}>
+          {session.title || 'New agent'}
         </span>
+        <span style={{ fontSize: 11, color: '#475569', marginLeft: 'auto' }}>gemini-2.5-flash</span>
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-        {messages.length === 0 && !streaming && (
+        {session.messages.length === 0 && !streaming && (
           <div style={{ color: '#475569', textAlign: 'center', marginTop: 80, fontSize: 14 }}>
             Send a coding task to get started
           </div>
         )}
-        {messages.map((msg, i) => <Message key={i} msg={msg} />)}
+        {session.messages.map((msg, i) => <Message key={i} msg={msg} />)}
 
         {streaming && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginBottom: 16 }}>
-            <AgentSteps steps={liveSteps} live={true} />
-            {liveText && (
+            <AgentSteps steps={session.liveSteps} live={true} />
+            {session.liveText && (
               <div style={{
                 maxWidth: '80%', background: '#1e293b', borderRadius: '12px 12px 12px 2px',
-                padding: '10px 14px', color: '#f1f5f9', fontSize: 14, lineHeight: 1.6,
-                whiteSpace: 'pre-wrap',
+                padding: '10px 14px', color: '#f1f5f9', fontSize: 14, lineHeight: 1.6, whiteSpace: 'pre-wrap',
               }}>
-                {liveText}
+                {session.liveText}
               </div>
             )}
           </div>
@@ -108,8 +66,8 @@ export default function Chat() {
         <div ref={bottomRef} />
       </div>
 
-      <div style={{ padding: '12px 24px', borderTop: '1px solid #1e293b' }}>
-        {session && <FileUpload sessionId={session.id} />}
+      <div style={{ padding: '12px 24px', borderTop: '1px solid #1e293b', flexShrink: 0 }}>
+        <FileUpload sessionId={session.id} />
         <div style={{ display: 'flex', gap: 8 }}>
           <textarea
             value={input}
@@ -121,8 +79,7 @@ export default function Chat() {
             style={{
               flex: 1, background: '#1e293b', border: '1px solid #334155',
               borderRadius: 8, color: '#f1f5f9', padding: '10px 12px',
-              fontSize: 14, resize: 'none', outline: 'none',
-              fontFamily: 'inherit',
+              fontSize: 14, resize: 'none', outline: 'none', fontFamily: 'inherit',
             }}
           />
           <button
