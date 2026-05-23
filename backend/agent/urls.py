@@ -8,6 +8,7 @@ urlpatterns = [
     path('sessions/<uuid:session_id>/files/', views.upload_files),
     path('sessions/<uuid:session_id>/stream/', views.stream_agent),
     path('sessions/<uuid:session_id>/approve/', views.approve_action),
+    path('events/', views.get_events),
     path('stats/', views.get_stats),
     path('webhooks/linear/', views.linear_webhook),
     path('linear/sync/', views.linear_sync),

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, Routes, Route } from 'react-router-dom';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -36,9 +36,17 @@ function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, n
 
   useEffect(() => {
     if (!session) return;
-    if (!session.messages.length && session.status === 'idle') {
+    if (!session.messages.length && session.status !== 'running') {
       getSession(id).then(data => {
-        setSessions(prev => prev.map(s => s.id === id ? { ...s, messages: data.messages } : s));
+        setSessions(prev => prev.map(s => {
+          if (s.id !== id) return s;
+          const update = { ...s, messages: data.messages };
+          if (data.pending_plan && !s.pendingApproval) {
+            update.pendingApproval = { ...data.pending_plan, event_type: 'plan' };
+            update.status = 'running';
+          }
+          return update;
+        }));
       });
     }
   }, [id]);
@@ -77,6 +85,61 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  // poll for background agent activity (tool calls, plan_ready, done)
+  const lastEventIdRef = useRef(0);
+  useEffect(() => {
+    const id = setInterval(async () => {
+      try {
+        const { events } = await getEvents(lastEventIdRef.current);
+        if (!events?.length) return;
+        lastEventIdRef.current = events[events.length - 1].id;
+
+        for (const ev of events) {
+          const session = sessionsRef.current.find(s => s.id === ev.session_id);
+
+          if (ev.event_type === 'tool_call') {
+            setFeed(prev => [{
+              id: `ev-${ev.id}`,
+              sessionId: ev.session_id,
+              color: session?.color ?? PALETTE[0],
+              sessionTitle: ev.session_title || session?.title || 'Agent',
+              tool: ev.data.tool,
+              args: ev.data.args,
+              ts: new Date(ev.created_at).getTime(),
+            }, ...prev].slice(0, 60));
+            // Mark as running if not already known to be running
+            setSessions(prev => prev.map(s =>
+              s.id === ev.session_id && s.status === 'idle'
+                ? { ...s, status: 'running', startedAt: s.startedAt ?? Date.now() }
+                : s
+            ));
+          }
+
+          if (ev.event_type === 'plan_ready') {
+            setSessions(prev => prev.map(s =>
+              s.id === ev.session_id && !s.pendingApproval
+                ? { ...s, pendingApproval: { ...ev.data, event_type: 'plan' }, status: 'running' }
+                : s
+            ));
+          }
+
+          if (ev.event_type === 'done') {
+            setSessions(prev => prev.map(s =>
+              s.id === ev.session_id ? { ...s, status: 'done' } : s
+            ));
+            // Reload messages so the completed conversation appears
+            getSession(ev.session_id).then(data => {
+              setSessions(prev => prev.map(s =>
+                s.id === ev.session_id ? { ...s, messages: data.messages } : s
+              ));
+            });
+          }
+        }
+      } catch (_) {}
+    }, 3000);
+    return () => clearInterval(id);
+  }, []);
+
   // auto-dismiss toasts after 5s
   const dismissToast = useCallback((id) => {
     setToasts(prev => prev.filter(t => t.id !== id));
@@ -94,6 +157,8 @@ export default function App() {
         ...makeSessionState(s, i),
         inputTokens: s.input_tokens ?? 0,
         outputTokens: s.output_tokens ?? 0,
+        // Background agent may have already produced a plan — flag it so Sidebar can indicate it
+        hasPendingPlan: s.has_pending_plan ?? false,
       }));
       setSessions(loaded);
     });

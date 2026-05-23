@@ -22,6 +22,8 @@ class Session(models.Model):
     linear_issue_key = models.CharField(max_length=32, blank=True)
     linear_issue_url = models.URLField(blank=True)
     linear_task_type = models.CharField(max_length=32, blank=True, choices=TASK_TYPE_CHOICES)
+    # Pending plan from background agent — set when submit_plan is called, cleared after approval
+    pending_plan = models.JSONField(null=True, blank=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -84,6 +86,17 @@ class TokenUsage(models.Model):
 
     class Meta:
         ordering = ['created_at']
+
+
+class GlobalEvent(models.Model):
+    """Broadcast events from background agents — polled by the frontend for ActivityFeed."""
+    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='global_events')
+    event_type = models.CharField(max_length=32)  # tool_call | plan_ready | done | error
+    data = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['id']
 
 
 class Memory(models.Model):

@@ -8,6 +8,14 @@ from . import approval
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
 PLAN_TOOLS = {'submit_plan'}
 
+
+def _save_global_event(session, event_type: str, data: dict):
+    from .models import GlobalEvent
+    try:
+        GlobalEvent.objects.create(session=session, event_type=event_type, data=data)
+    except Exception:
+        pass
+
 BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, search the web, interact with GitHub repositories, and read/write persistent memory.
 
 When working on a task:
@@ -200,6 +208,11 @@ def run(session, prompt: str, skip_gated: bool = False):
                 session.save(update_fields=['input_tokens', 'output_tokens'])
 
             _post_linear_comment(session, f'✅ Agent completed turn.\n\n{text[:1000]}')
+            _save_global_event(session, 'done', {
+                'message_id': str(assistant_msg.id),
+                'input_tokens': total_input_tokens,
+                'output_tokens': total_output_tokens,
+            })
 
             yield {'type': 'done', 'payload': {
                 'message_id': assistant_msg.id,
@@ -217,8 +230,14 @@ def run(session, prompt: str, skip_gated: bool = False):
             args = dict(fc.args)
 
             if tool_name in PLAN_TOOLS:
+                # Save plan to DB so frontend can discover it without an active SSE connection
+                session.pending_plan = args
+                session.save(update_fields=['pending_plan'])
+                _save_global_event(session, 'plan_ready', args)
                 yield {'type': 'plan_ready', 'payload': args}
                 approved = approval.wait_for_approval(session.id)
+                session.pending_plan = None
+                session.save(update_fields=['pending_plan'])
                 if not approved:
                     result_text = 'Plan rejected by the user. Revise your approach and submit a new plan.'
                     yield {'type': 'approval_rejected', 'payload': {'tool': tool_name}}
@@ -227,6 +246,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
 
             elif tool_name in GATED_TOOLS and not skip_gated:
+                _save_global_event(session, 'approval_required', {'tool': tool_name, 'args': args})
                 yield {'type': 'approval_required', 'payload': {'tool': tool_name, 'args': args}}
                 approved = approval.wait_for_approval(session.id)
                 if not approved:
@@ -236,6 +256,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
                     yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                     agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
+                    _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
                     result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
                     yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                     agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
@@ -243,6 +264,7 @@ def run(session, prompt: str, skip_gated: bool = False):
             else:
                 yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                 agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
+                _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
                 result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
                 yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                 agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})

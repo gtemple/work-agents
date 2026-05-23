@@ -98,6 +98,11 @@ export async function deleteSchedule(id) {
   await fetch(`/api/schedules/${id}/`, { method: 'DELETE' });
 }
 
+export async function getEvents(afterId = 0) {
+  const res = await fetch(`/api/events/?after=${afterId}`);
+  return res.json();
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);

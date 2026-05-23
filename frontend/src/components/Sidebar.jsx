@@ -56,16 +56,21 @@ function SessionRow({ s, activeId, onSelect, now }) {
             {s.linear_issue_key ? (s.title || '').replace(/^[A-Z]+-\d+:\s*/, '') : (s.title || 'New agent')}
           </span>
         </div>
-        {(isRunning || s.stepCount > 0 || badge) && (
+        {(isRunning || s.stepCount > 0 || badge || s.pendingApproval || s.hasPendingPlan) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>
             {badge && (
               <span style={{ fontSize: 9, color: badge.color, border: `1px solid ${badge.color}44`, borderRadius: 3, padding: '0 4px' }}>
                 {badge.label}
               </span>
             )}
-            {(isRunning || s.stepCount > 0) && (
-              <span style={{ fontSize: 10, color: isRunning ? s.color : '#475569' }}>
-                {s.stepCount > 0 ? `${s.stepCount} step${s.stepCount !== 1 ? 's' : ''}` : ''}
+            {(s.pendingApproval || s.hasPendingPlan) && (
+              <span style={{ fontSize: 9, color: '#fbbf24', background: '#fbbf2415', border: '1px solid #fbbf2440', borderRadius: 3, padding: '0 5px' }}>
+                plan ready
+              </span>
+            )}
+            {isRunning && !s.pendingApproval && (
+              <span style={{ fontSize: 10, color: s.color }}>
+                {s.stepCount > 0 ? `${s.stepCount} step${s.stepCount !== 1 ? 's' : ''}` : 'planning…'}
               </span>
             )}
           </div>

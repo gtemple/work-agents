@@ -1,14 +1,34 @@
 import hashlib
 import hmac
 import json
+import threading
 from pathlib import Path
 from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory, Schedule, TokenUsage
+from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent
 from . import agent_loop
 from . import approval as approval_mod
+
+
+def _start_planning_thread(session):
+    """Run the agent in a background thread so it can plan without an active SSE connection."""
+    def _run():
+        import django.db
+        try:
+            prompt = (
+                "Review this Linear issue carefully and produce an implementation plan. "
+                "Explore the codebase as needed, then call submit_plan with your concrete plan."
+            )
+            for _ in agent_loop.run(session, prompt):
+                pass
+        except Exception:
+            pass
+        finally:
+            django.db.close_old_connections()
+
+    threading.Thread(target=_run, daemon=True).start()
 
 
 @csrf_exempt
@@ -52,6 +72,7 @@ def get_session(request, session_id):
         'title': session.title,
         'system_prompt': session.system_prompt,
         'messages': messages,
+        'pending_plan': session.pending_plan,
     })
 
 
@@ -67,6 +88,7 @@ def list_sessions(request):
             'linear_issue_key': s.linear_issue_key,
             'linear_issue_url': s.linear_issue_url,
             'linear_task_type': s.linear_task_type,
+            'has_pending_plan': s.pending_plan is not None,
         }
         for s in sessions
     ]})
@@ -136,6 +158,28 @@ def approve_action(request, session_id):
 
 
 # ── Memory ────────────────────────────────────────────────────────────────────
+
+@require_http_methods(['GET'])
+def get_events(request):
+    after_id = int(request.GET.get('after', 0))
+    events = (
+        GlobalEvent.objects
+        .filter(id__gt=after_id)
+        .select_related('session')
+        .order_by('id')[:100]
+    )
+    return JsonResponse({'events': [
+        {
+            'id': e.id,
+            'session_id': str(e.session_id),
+            'session_title': e.session.title,
+            'event_type': e.event_type,
+            'data': e.data,
+            'created_at': e.created_at.isoformat(),
+        }
+        for e in events
+    ]})
+
 
 @require_http_methods(['GET'])
 def list_memories(request):
@@ -265,6 +309,9 @@ def linear_webhook(request):
             'system_prompt': f'**{issue_key} — {title}**\n\n{description}'.strip(),
         },
     )
+
+    if created:
+        _start_planning_thread(session)
 
     return JsonResponse({
         'received': True, 'processed': True,
