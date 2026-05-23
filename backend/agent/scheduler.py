@@ -23,7 +23,7 @@ def _loop():
                     system_prompt=schedule.system_prompt,
                 )
                 try:
-                    for _ in agent_loop.run(session, schedule.prompt, skip_gated=True):
+                    for _ in agent_loop.run(session, schedule.prompt):
                         pass
                 except Exception:
                     logger.exception('Scheduled agent failed: %s', schedule.name)
