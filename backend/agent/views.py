@@ -163,12 +163,11 @@ def approve_action(request, session_id):
 @require_http_methods(['GET'])
 def get_events(request):
     after_id = int(request.GET.get('after', 0))
-    events = (
-        GlobalEvent.objects
-        .filter(id__gt=after_id)
-        .select_related('session')
-        .order_by('id')[:100]
-    )
+    session_id = request.GET.get('session')
+    qs = GlobalEvent.objects.filter(id__gt=after_id).select_related('session').order_by('id')
+    if session_id:
+        qs = qs.filter(session_id=session_id)
+    events = qs[:200]
     return JsonResponse({'events': [
         {
             'id': e.id,

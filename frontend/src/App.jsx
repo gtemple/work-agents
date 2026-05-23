@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, Routes, Route } from 'react-router-dom';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents, getSessionEvents } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -16,7 +16,7 @@ function makeSessionState(s, colorIndex) {
   return {
     ...s,
     messages: [], liveSteps: [], liveText: '',
-    status: 'idle', stepCount: 0, startedAt: null,
+    status: 'idle', stepCount: 0, startedAt: null, eventsLoadedUpTo: 0,
     system_prompt: s.system_prompt ?? '',
     color: PALETTE[colorIndex % PALETTE.length],
     inputTokens: 0,
@@ -36,7 +36,22 @@ function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, n
 
   useEffect(() => {
     if (!session) return;
-    if (!session.messages.length && session.status !== 'running') {
+
+    if (session.status === 'running' && !session.liveSteps.length && !session.eventsLoadedUpTo) {
+      // Backfill liveSteps from DB for background sessions
+      getSessionEvents(id).then(({ events }) => {
+        if (!events?.length) return;
+        const steps = events
+          .filter(e => e.event_type === 'tool_call')
+          .map(e => ({ step_type: 'tool_call', data: { tool: e.data.tool, args: e.data.args } }));
+        const lastId = events[events.length - 1].id;
+        setSessions(prev => prev.map(s =>
+          s.id === id
+            ? { ...s, liveSteps: steps, stepCount: steps.length, eventsLoadedUpTo: lastId }
+            : s
+        ));
+      });
+    } else if (!session.messages.length && session.status !== 'running') {
       getSession(id).then(data => {
         setSessions(prev => prev.map(s => {
           if (s.id !== id) return s;
@@ -49,7 +64,7 @@ function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, n
         }));
       });
     }
-  }, [id]);
+  }, [id, session?.status]);
 
   if (!session) return null;
   return (
@@ -107,12 +122,18 @@ export default function App() {
               args: ev.data.args,
               ts: new Date(ev.created_at).getTime(),
             }, ...prev].slice(0, 60));
-            // Mark as running if not already known to be running
-            setSessions(prev => prev.map(s =>
-              s.id === ev.session_id && s.status === 'idle'
-                ? { ...s, status: 'running', startedAt: s.startedAt ?? Date.now() }
-                : s
-            ));
+            setSessions(prev => prev.map(s => {
+              if (s.id !== ev.session_id) return s;
+              // Skip if already loaded via backfill
+              if (ev.id <= s.eventsLoadedUpTo) return s;
+              return {
+                ...s,
+                status: 'running',
+                startedAt: s.startedAt ?? Date.now(),
+                liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args } }],
+                stepCount: s.stepCount + 1,
+              };
+            }));
           }
 
           if (ev.event_type === 'plan_ready') {
@@ -125,9 +146,10 @@ export default function App() {
 
           if (ev.event_type === 'done') {
             setSessions(prev => prev.map(s =>
-              s.id === ev.session_id ? { ...s, status: 'done' } : s
+              s.id === ev.session_id
+                ? { ...s, status: 'done', liveSteps: [], liveText: '', eventsLoadedUpTo: 0 }
+                : s
             ));
-            // Reload messages so the completed conversation appears
             getSession(ev.session_id).then(data => {
               setSessions(prev => prev.map(s =>
                 s.id === ev.session_id ? { ...s, messages: data.messages } : s
