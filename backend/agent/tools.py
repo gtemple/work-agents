@@ -145,6 +145,45 @@ DECLARATIONS = [
         },
     },
     {
+        'name': 'memory_write',
+        'description': 'Store a fact, decision, or piece of knowledge in persistent memory. This persists across all sessions.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'key': {'type': 'string', 'description': 'Short descriptive key, e.g. "auth-approach" or "django-version"'},
+                'value': {'type': 'string', 'description': 'The content to store'},
+            },
+            'required': ['key', 'value'],
+        },
+    },
+    {
+        'name': 'memory_read',
+        'description': 'Read a stored memory by key.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'key': {'type': 'string', 'description': 'The memory key to read'},
+            },
+            'required': ['key'],
+        },
+    },
+    {
+        'name': 'memory_list',
+        'description': 'List all stored memories with a short preview of each value.',
+        'parameters': {'type': 'object', 'properties': {}},
+    },
+    {
+        'name': 'memory_delete',
+        'description': 'Delete a stored memory by key.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'key': {'type': 'string', 'description': 'The memory key to delete'},
+            },
+            'required': ['key'],
+        },
+    },
+    {
         'name': 'web_search',
         'description': 'Search the web for documentation, Stack Overflow answers, library info, or any other information needed to complete the task.',
         'parameters': {
@@ -353,6 +392,37 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
             body=args['body'],
             base=args.get('base_branch', 'main'),
         )
+
+    elif tool_name == 'memory_write':
+        from .models import Memory
+        obj, created = Memory.objects.update_or_create(
+            key=args['key'], defaults={'value': args['value']}
+        )
+        return f'{"Stored" if created else "Updated"} memory: {args["key"]}'
+
+    elif tool_name == 'memory_read':
+        from .models import Memory
+        try:
+            m = Memory.objects.get(key=args['key'])
+            return m.value
+        except Memory.DoesNotExist:
+            return f'No memory found for key: {args["key"]}'
+
+    elif tool_name == 'memory_list':
+        from .models import Memory
+        memories = Memory.objects.all()
+        if not memories:
+            return 'No memories stored yet.'
+        lines = []
+        for m in memories:
+            preview = m.value[:80].replace('\n', ' ')
+            lines.append(f'**{m.key}**: {preview}{"…" if len(m.value) > 80 else ""}')
+        return '\n'.join(lines)
+
+    elif tool_name == 'memory_delete':
+        from .models import Memory
+        deleted, _ = Memory.objects.filter(key=args['key']).delete()
+        return f'Deleted memory: {args["key"]}' if deleted else f'No memory found for key: {args["key"]}'
 
     elif tool_name == 'web_search':
         num = min(int(args.get('num_results', 6)), 10)

@@ -4,8 +4,9 @@ from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message
+from .models import Session, Message, Memory
 from . import agent_loop
+from . import approval as approval_mod
 
 
 @csrf_exempt
@@ -111,3 +112,36 @@ def stream_agent(request, session_id):
     response['Cache-Control'] = 'no-cache'
     response['X-Accel-Buffering'] = 'no'
     return response
+
+
+# ── Approval ──────────────────────────────────────────────────────────────────
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def approve_action(request, session_id):
+    data = json.loads(request.body or '{}')
+    approved = data.get('approved', False)
+    approval_mod.respond(session_id, approved)
+    return JsonResponse({'ok': True})
+
+
+# ── Memory ────────────────────────────────────────────────────────────────────
+
+@require_http_methods(['GET'])
+def list_memories(request):
+    memories = Memory.objects.all()
+    return JsonResponse({'memories': [
+        {'key': m.key, 'value': m.value, 'updated_at': m.updated_at.isoformat()}
+        for m in memories
+    ]})
+
+
+@csrf_exempt
+@require_http_methods(['POST', 'DELETE'])
+def memory_detail(request, key):
+    if request.method == 'DELETE':
+        Memory.objects.filter(key=key).delete()
+        return JsonResponse({'ok': True})
+    data = json.loads(request.body or '{}')
+    obj, _ = Memory.objects.update_or_create(key=key, defaults={'value': data.get('value', '')})
+    return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})

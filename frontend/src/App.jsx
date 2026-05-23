@@ -1,10 +1,11 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { createSession, listSessions, getSession, streamAgent, updateSession } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
 import ActivityFeed from './components/ActivityFeed';
 import Toast from './components/Toast';
+import MemoryPanel from './components/MemoryPanel';
 
 const PALETTE = ['#818cf8', '#34d399', '#fb923c', '#f472b6', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
 
@@ -17,15 +18,17 @@ function makeSessionState(s, colorIndex) {
     color: PALETTE[colorIndex % PALETTE.length],
     inputTokens: 0,
     outputTokens: 0,
+    pendingApproval: null,
   };
 }
 
 export default function App() {
   const [sessions, setSessions] = useState([]);
   const [activeId, setActiveId] = useState(null);
-  const [feed, setFeed] = useState([]);       // global activity feed
-  const [toasts, setToasts] = useState([]);   // completion toasts
-  const [now, setNow] = useState(Date.now()); // ticks for elapsed timers
+  const [feed, setFeed] = useState([]);
+  const [toasts, setToasts] = useState([]);
+  const [now, setNow] = useState(Date.now());
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const esRefs = useRef({});
   const sessionsRef = useRef(sessions);
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -149,10 +152,18 @@ export default function App() {
           }]);
         }
         delete esRefs.current[sessionId];
+      } else if (event.type === 'approval_required') {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId ? { ...s, pendingApproval: event.payload } : s
+        ));
+      } else if (event.type === 'approval_granted' || event.type === 'approval_rejected') {
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId ? { ...s, pendingApproval: null } : s
+        ));
       } else if (event.type === 'error') {
         setSessions(prev => prev.map(s =>
           s.id === sessionId
-            ? { ...s, status: 'error', liveSteps: [], liveText: '',
+            ? { ...s, status: 'error', liveSteps: [], liveText: '', pendingApproval: null,
                 messages: [...s.messages, { role: 'assistant', content: `Error: ${event.payload.message}`, steps: [] }] }
             : s
         ));
@@ -161,6 +172,11 @@ export default function App() {
     });
 
     esRefs.current[sessionId] = es;
+  }, []);
+
+  const approve = useCallback((sessionId, approved) => {
+    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, pendingApproval: null } : s));
+    approveAction(sessionId, approved);
   }, []);
 
   const saveSystemPrompt = useCallback((sessionId, value) => {
@@ -175,15 +191,23 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
-          ? <Chat session={active} onSend={(prompt) => send(active.id, prompt)} onSaveSystemPrompt={(v) => saveSystemPrompt(active.id, v)} now={now} />
+          ? <Chat
+              session={active}
+              onSend={(prompt) => send(active.id, prompt)}
+              onSaveSystemPrompt={(v) => saveSystemPrompt(active.id, v)}
+              onApprove={() => approve(active.id, true)}
+              onReject={() => approve(active.id, false)}
+              now={now}
+            />
           : <AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} />
         }
       </div>
       <ActivityFeed events={feed} now={now} />
       <Toast toasts={toasts} onDismiss={dismissToast} onSelect={switchTo} />
+      {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
     </div>
   );
 }

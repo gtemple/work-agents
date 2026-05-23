@@ -20,7 +20,7 @@ function StatusDot({ status, color }) {
   );
 }
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, now }) {
+export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, now }) {
   return (
     <div style={{
       width: 220, flexShrink: 0,
@@ -84,6 +84,16 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
             </button>
           );
         })}
+      </div>
+
+      <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b' }}>
+        <button onClick={onMemory} style={{
+          width: '100%', background: 'none', border: '1px solid #1e293b',
+          borderRadius: 6, color: '#475569', padding: '6px 0',
+          cursor: 'pointer', fontSize: 12, textAlign: 'center',
+        }}>
+          Memory
+        </button>
       </div>
 
       <style>{`

@@ -37,3 +37,16 @@ class AgentStep(models.Model):
 
     class Meta:
         ordering = ['order']
+
+
+class Memory(models.Model):
+    key = models.CharField(max_length=255, unique=True)
+    value = models.TextField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+        verbose_name_plural = 'memories'
+
+    def __str__(self):
+        return self.key

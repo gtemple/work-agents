@@ -3,8 +3,11 @@ from django.conf import settings
 from google import genai
 from google.genai import types
 from . import tools
+from . import approval
 
-BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, search the web, and interact with GitHub repositories.
+GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
+
+BASE_SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, search the web, interact with GitHub repositories, and read/write persistent memory.
 
 When working on a task:
 - Always explain what you're doing before and after each step
@@ -17,13 +20,30 @@ For GitHub tasks:
 - Always create a new branch with git_branch before making changes — never commit directly to main/master
 - Use git_status and git_diff to review changes before committing
 - Write clear commit messages and PR descriptions that explain what changed and why
-- After pushing, use create_pr to open the pull request"""
+- After pushing, use create_pr to open the pull request
+
+For memory:
+- Use memory_write to store important facts, decisions, or patterns you discover
+- Use memory_read or memory_list to recall stored knowledge before starting a task
+- Store things like: architectural decisions, known gotchas, stack versions, team conventions"""
 
 
 def _compose_system_prompt(session) -> str:
+    from .models import Memory
     parts = [BASE_SYSTEM_PROMPT]
+
     if session.system_prompt.strip():
-        parts.append(f"## Session context (set by user)\n{session.system_prompt.strip()}")
+        parts.append(f"## Session context\n{session.system_prompt.strip()}")
+
+    memories = list(Memory.objects.all()[:30])
+    if memories:
+        keys = ', '.join(f'"{m.key}"' for m in memories)
+        parts.append(
+            f"## Persistent memory ({len(memories)} entries)\n"
+            f"Available keys: {keys}\n"
+            f"Use memory_read(key) to retrieve a value, memory_list() to see all with previews."
+        )
+
     return '\n\n'.join(parts)
 
 
@@ -123,13 +143,25 @@ def run(session, prompt: str):
             tool_name = fc.name
             args = dict(fc.args)
 
-            yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
-            agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
-
-            result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
-
-            yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
-            agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
+            if tool_name in GATED_TOOLS:
+                yield {'type': 'approval_required', 'payload': {'tool': tool_name, 'args': args}}
+                approved = approval.wait_for_approval(session.id)
+                if not approved:
+                    result_text = f'Action "{tool_name}" was rejected by the user.'
+                    yield {'type': 'approval_rejected', 'payload': {'tool': tool_name}}
+                else:
+                    yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
+                    yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
+                    agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
+                    result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
+                    yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
+                    agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
+            else:
+                yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
+                agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
+                result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
+                yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
+                agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
 
             tool_response_parts.append(types.Part(
                 function_response=types.FunctionResponse(

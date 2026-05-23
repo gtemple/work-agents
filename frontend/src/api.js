@@ -35,6 +35,32 @@ export async function uploadFiles(sessionId, files) {
   return res.json();
 }
 
+export async function approveAction(sessionId, approved) {
+  await fetch(`/api/sessions/${sessionId}/approve/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ approved }),
+  });
+}
+
+export async function listMemories() {
+  const res = await fetch('/api/memory/');
+  return res.json();
+}
+
+export async function writeMemory(key, value) {
+  const res = await fetch(`/api/memory/${encodeURIComponent(key)}/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ value }),
+  });
+  return res.json();
+}
+
+export async function deleteMemory(key) {
+  await fetch(`/api/memory/${encodeURIComponent(key)}/`, { method: 'DELETE' });
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);

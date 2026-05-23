@@ -3,6 +3,7 @@ import Message from './Message';
 import AgentSteps from './AgentSteps';
 import FileUpload from './FileUpload';
 import SessionPrompt from './SessionPrompt';
+import ApprovalGate from './ApprovalGate';
 import { formatElapsed, estimateCost, formatCost, formatTokens } from '../utils';
 
 const TEMPLATES = [
@@ -32,7 +33,7 @@ const TEMPLATES = [
   },
 ];
 
-export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
+export default function Chat({ session, onSend, onSaveSystemPrompt, onApprove, onReject, now }) {
   const [input, setInput] = useState('');
   const bottomRef = useRef(null);
   const streaming = session.status === 'running';
@@ -104,6 +105,9 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, now }) {
         {streaming && (
           <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', marginBottom: 16 }}>
             <AgentSteps steps={session.liveSteps} live={true} />
+            {session.pendingApproval && (
+              <ApprovalGate approval={session.pendingApproval} onApprove={onApprove} onReject={onReject} />
+            )}
             {session.liveText && (
               <div style={{
                 maxWidth: '80%', background: '#1e293b', borderRadius: '12px 12px 12px 2px',
