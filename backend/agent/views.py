@@ -2,6 +2,7 @@ import hashlib
 import hmac
 import json
 import threading
+import time
 from pathlib import Path
 from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
@@ -335,6 +336,7 @@ def linear_sync(request):
 
     created_count = 0
     skipped_count = 0
+    sessions_to_plan = []
 
     for issue in issues:
         labels = [l.get('name', '').lower() for l in (issue.get('labels') or {}).get('nodes', [])]
@@ -350,7 +352,7 @@ def linear_sync(request):
         description = issue.get('description', '') or ''
         url = issue.get('url', '')
 
-        _, created = Session.objects.get_or_create(
+        session, created = Session.objects.get_or_create(
             linear_issue_id=issue_id,
             defaults={
                 'title': f'{issue_key}: {title}',
@@ -366,9 +368,24 @@ def linear_sync(request):
         else:
             skipped_count += 1
 
+        needs_plan = session.pending_plan is None and not session.messages.exists()
+        if needs_plan:
+            sessions_to_plan.append(session)
+
+    # Stagger planning threads 8s apart so they don't all hit the API at once
+    def _start_staggered(sessions):
+        for i, s in enumerate(sessions):
+            if i > 0:
+                time.sleep(8)
+            _start_planning_thread(s)
+
+    if sessions_to_plan:
+        threading.Thread(target=_start_staggered, args=[sessions_to_plan], daemon=True).start()
+
     return JsonResponse({
         'imported': created_count,
         'already_existed': skipped_count,
+        'planning': len(sessions_to_plan),
         'total': len(issues),
     })
 
