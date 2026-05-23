@@ -75,6 +75,17 @@ export default function App() {
     });
   }, []);
 
+  const refreshSessions = useCallback(() => {
+    listSessions().then(({ sessions: list }) => {
+      setSessions(prev => list.map((s, i) => {
+        const existing = prev.find(p => p.id === s.id);
+        return existing
+          ? { ...existing, title: s.title, is_work: s.is_work, linear_issue_key: s.linear_issue_key, linear_issue_url: s.linear_issue_url, linear_task_type: s.linear_task_type }
+          : { ...makeSessionState(s, i), inputTokens: s.input_tokens ?? 0, outputTokens: s.output_tokens ?? 0 };
+      }));
+    });
+  }, []);
+
   const newAgent = useCallback(async () => {
     const s = await createSession();
     setSessions(prev => [makeSessionState(s, prev.length), ...prev]);
@@ -209,7 +220,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
           ? <Chat

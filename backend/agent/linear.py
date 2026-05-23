@@ -23,6 +23,34 @@ def post_comment(issue_id: str, body: str):
     )
 
 
+def fetch_issues(team_id: str = None, state_filter: str = 'open'):
+    """Fetch issues from Linear. state_filter: 'open', 'all'."""
+    filter_clause = ''
+    if team_id:
+        filter_clause = f'filter: {{ team: {{ id: {{ eq: "{team_id}" }} }} }}'
+
+    query = f'''{{
+        issues({filter_clause} first: 100 orderBy: updatedAt) {{
+            nodes {{
+                id identifier title description url priority
+                labels {{ nodes {{ name }} }}
+                state {{ name type }}
+                team {{ id name key }}
+                createdAt updatedAt
+            }}
+        }}
+    }}'''
+
+    data = _post(query)
+    issues = data.get('data', {}).get('issues', {}).get('nodes', [])
+
+    if state_filter == 'open':
+        # Exclude completed/cancelled states
+        issues = [i for i in issues if i.get('state', {}).get('type') not in ('completed', 'cancelled')]
+
+    return issues
+
+
 def set_status(issue_id: str, state_name: str):
     """Move issue to a state by name (e.g. 'In Progress', 'Done')."""
     # Fetch available states

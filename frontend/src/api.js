@@ -61,6 +61,11 @@ export async function deleteMemory(key) {
   await fetch(`/api/memory/${encodeURIComponent(key)}/`, { method: 'DELETE' });
 }
 
+export async function syncLinear() {
+  const res = await fetch('/api/linear/sync/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
+  return res.json();
+}
+
 export async function getStats() {
   const res = await fetch('/api/stats/');
   return res.json();

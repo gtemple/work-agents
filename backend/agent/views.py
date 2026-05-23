@@ -272,6 +272,60 @@ def linear_webhook(request):
     })
 
 
+@require_http_methods(['POST'])
+@csrf_exempt
+def linear_sync(request):
+    """Pull open issues from Linear and create sessions for any not already imported."""
+    from . import linear as linear_mod
+
+    data = json.loads(request.body or '{}')
+    state_filter = data.get('state', 'open')
+
+    try:
+        issues = linear_mod.fetch_issues(state_filter=state_filter)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+    created_count = 0
+    skipped_count = 0
+
+    for issue in issues:
+        labels = [l.get('name', '').lower() for l in (issue.get('labels') or {}).get('nodes', [])]
+        task_type = 'feature'
+        for label_word, t in TASK_TYPE_LABELS.items():
+            if any(label_word in l for l in labels):
+                task_type = t
+                break
+
+        issue_id = issue.get('id')
+        issue_key = issue.get('identifier', '')
+        title = issue.get('title', '')
+        description = issue.get('description', '') or ''
+        url = issue.get('url', '')
+
+        _, created = Session.objects.get_or_create(
+            linear_issue_id=issue_id,
+            defaults={
+                'title': f'{issue_key}: {title}',
+                'is_work': True,
+                'linear_issue_key': issue_key,
+                'linear_issue_url': url,
+                'linear_task_type': task_type,
+                'system_prompt': f'**{issue_key} — {title}**\n\n{description}'.strip(),
+            },
+        )
+        if created:
+            created_count += 1
+        else:
+            skipped_count += 1
+
+    return JsonResponse({
+        'imported': created_count,
+        'already_existed': skipped_count,
+        'total': len(issues),
+    })
+
+
 # ── Schedules ─────────────────────────────────────────────────────────────────
 
 def _schedule_dict(s):

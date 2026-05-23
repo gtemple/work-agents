@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatElapsed, formatTokens, estimateCost, formatCost } from '../utils';
+import { syncLinear } from '../api';
 
 const STATUS_DOT = {
   idle:    { color: '#475569', pulse: false },
@@ -73,8 +74,19 @@ const TASK_TYPE_BADGE = {
   refactor: { label: 'Refactor', color: '#a78bfa' },
 };
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, now }) {
+export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, onSessionsChanged, now }) {
   const [search, setSearch] = useState('');
+  const [syncing, setSyncing] = useState(false);
+
+  async function handleSync() {
+    setSyncing(true);
+    try {
+      await syncLinear();
+      onSessionsChanged?.();
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const matchSearch = s => !search.trim() ||
     (s.title || 'New agent').toLowerCase().includes(search.toLowerCase()) ||
@@ -126,12 +138,30 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
       <div style={{ flex: 1, overflowY: 'auto' }}>
         {workSessions.length > 0 && (
           <>
-            <div style={{ padding: '8px 12px 4px', fontSize: 10, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-              Work
+            <div style={{ padding: '8px 12px 4px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <span style={{ fontSize: 10, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Work</span>
+              <button onClick={handleSync} disabled={syncing} style={{
+                background: 'none', border: 'none', color: '#334155', cursor: 'pointer',
+                fontSize: 10, padding: 0, opacity: syncing ? 0.5 : 1,
+              }}>
+                {syncing ? '…' : '↻ sync'}
+              </button>
             </div>
             {workSessions.map(s => <SessionRow key={s.id} s={s} activeId={activeId} onSelect={onSelect} now={now} />)}
             <div style={{ margin: '6px 12px', borderTop: '1px solid #1e293b' }} />
           </>
+        )}
+
+        {workSessions.length === 0 && (
+          <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 10, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Work</span>
+            <button onClick={handleSync} disabled={syncing} style={{
+              background: 'none', border: 'none', color: '#475569', cursor: 'pointer',
+              fontSize: 10, padding: 0, opacity: syncing ? 0.5 : 1,
+            }}>
+              {syncing ? '…' : '↻ sync Linear'}
+            </button>
+          </div>
         )}
 
         {workSessions.length > 0 && personalSessions.length > 0 && (
