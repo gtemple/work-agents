@@ -39,6 +39,27 @@ class AgentStep(models.Model):
         ordering = ['order']
 
 
+class Schedule(models.Model):
+    INTERVAL_CHOICES = [
+        (60, 'Every hour'),
+        (360, 'Every 6 hours'),
+        (1440, 'Every day'),
+        (10080, 'Every week'),
+    ]
+
+    name = models.CharField(max_length=255)
+    prompt = models.TextField()
+    system_prompt = models.TextField(blank=True)
+    interval_minutes = models.IntegerField(default=1440, choices=INTERVAL_CHOICES)
+    enabled = models.BooleanField(default=True)
+    last_run = models.DateTimeField(null=True, blank=True)
+    next_run = models.DateTimeField()
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['next_run']
+
+
 class Memory(models.Model):
     key = models.CharField(max_length=255, unique=True)
     value = models.TextField()

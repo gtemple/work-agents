@@ -61,6 +61,33 @@ export async function deleteMemory(key) {
   await fetch(`/api/memory/${encodeURIComponent(key)}/`, { method: 'DELETE' });
 }
 
+export async function listSchedules() {
+  const res = await fetch('/api/schedules/');
+  return res.json();
+}
+
+export async function createSchedule(data) {
+  const res = await fetch('/api/schedules/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function updateSchedule(id, patch) {
+  const res = await fetch(`/api/schedules/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+  return res.json();
+}
+
+export async function deleteSchedule(id) {
+  await fetch(`/api/schedules/${id}/`, { method: 'DELETE' });
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);

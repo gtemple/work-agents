@@ -66,7 +66,7 @@ def _build_tool_config():
     ])
 
 
-def run(session, prompt: str):
+def run(session, prompt: str, skip_gated: bool = False):
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
 
     history = []
@@ -152,7 +152,7 @@ def run(session, prompt: str):
             tool_name = fc.name
             args = dict(fc.args)
 
-            if tool_name in GATED_TOOLS:
+            if tool_name in GATED_TOOLS and not skip_gated:
                 yield {'type': 'approval_required', 'payload': {'tool': tool_name, 'args': args}}
                 approved = approval.wait_for_approval(session.id)
                 if not approved:

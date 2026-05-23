@@ -6,6 +6,7 @@ import AgentCards from './components/AgentCards';
 import ActivityFeed from './components/ActivityFeed';
 import Toast from './components/Toast';
 import MemoryPanel from './components/MemoryPanel';
+import SchedulePanel from './components/SchedulePanel';
 
 const PALETTE = ['#818cf8', '#34d399', '#fb923c', '#f472b6', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
 
@@ -29,6 +30,7 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [now, setNow] = useState(Date.now());
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [schedulesOpen, setSchedulesOpen] = useState(false);
   const esRefs = useRef({});
   const sessionsRef = useRef(sessions);
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
@@ -191,7 +193,7 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} now={now} />
+      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => setActiveId(null)} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         {active
           ? <Chat
@@ -208,6 +210,7 @@ export default function App() {
       <ActivityFeed events={feed} now={now} />
       <Toast toasts={toasts} onDismiss={dismissToast} onSelect={switchTo} />
       {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
+      {schedulesOpen && <SchedulePanel onClose={() => setSchedulesOpen(false)} />}
     </div>
   );
 }

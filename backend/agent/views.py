@@ -4,7 +4,7 @@ from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory
+from .models import Session, Message, Memory, Schedule
 from . import agent_loop
 from . import approval as approval_mod
 
@@ -145,3 +145,56 @@ def memory_detail(request, key):
     data = json.loads(request.body or '{}')
     obj, _ = Memory.objects.update_or_create(key=key, defaults={'value': data.get('value', '')})
     return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})
+
+
+# ── Schedules ─────────────────────────────────────────────────────────────────
+
+def _schedule_dict(s):
+    return {
+        'id': s.id,
+        'name': s.name,
+        'prompt': s.prompt,
+        'system_prompt': s.system_prompt,
+        'interval_minutes': s.interval_minutes,
+        'enabled': s.enabled,
+        'last_run': s.last_run.isoformat() if s.last_run else None,
+        'next_run': s.next_run.isoformat(),
+        'created_at': s.created_at.isoformat(),
+    }
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def list_schedules(request):
+    if request.method == 'POST':
+        from django.utils import timezone
+        from datetime import timedelta
+        data = json.loads(request.body or '{}')
+        interval = int(data.get('interval_minutes', 1440))
+        schedule = Schedule.objects.create(
+            name=data['name'],
+            prompt=data['prompt'],
+            system_prompt=data.get('system_prompt', ''),
+            interval_minutes=interval,
+            next_run=timezone.now() + timedelta(minutes=interval),
+        )
+        return JsonResponse(_schedule_dict(schedule))
+    return JsonResponse({'schedules': [_schedule_dict(s) for s in Schedule.objects.all()]})
+
+
+@csrf_exempt
+@require_http_methods(['PATCH', 'DELETE'])
+def schedule_detail(request, schedule_id):
+    try:
+        schedule = Schedule.objects.get(id=schedule_id)
+    except Schedule.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if request.method == 'DELETE':
+        schedule.delete()
+        return JsonResponse({'ok': True})
+    data = json.loads(request.body or '{}')
+    for field in ('name', 'prompt', 'system_prompt', 'interval_minutes', 'enabled'):
+        if field in data:
+            setattr(schedule, field, data[field])
+    schedule.save()
+    return JsonResponse(_schedule_dict(schedule))

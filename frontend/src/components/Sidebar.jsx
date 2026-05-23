@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { formatElapsed } from '../utils';
 
 const STATUS_DOT = {
@@ -20,7 +21,12 @@ function StatusDot({ status, color }) {
   );
 }
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, now }) {
+export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, now }) {
+  const [search, setSearch] = useState('');
+  const filtered = search.trim()
+    ? sessions.filter(s => (s.title || 'New agent').toLowerCase().includes(search.toLowerCase()))
+    : sessions;
+
   return (
     <div style={{
       width: 220, flexShrink: 0,
@@ -46,13 +52,28 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
         }}>+</button>
       </div>
 
+      {/* Search */}
+      <div style={{ padding: '8px 10px', borderBottom: '1px solid #0d1829' }}>
+        <input
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search sessions…"
+          style={{
+            width: '100%', boxSizing: 'border-box',
+            background: '#1e293b', border: '1px solid #334155',
+            borderRadius: 6, color: '#f1f5f9', padding: '5px 8px',
+            fontSize: 12, outline: 'none',
+          }}
+        />
+      </div>
+
       <div style={{ flex: 1, overflowY: 'auto' }}>
-        {sessions.length === 0 && (
+        {filtered.length === 0 && (
           <div style={{ padding: '20px 14px', color: '#334155', fontSize: 12, textAlign: 'center' }}>
-            No agents yet
+            {search ? 'No matches' : 'No agents yet'}
           </div>
         )}
-        {sessions.map(s => {
+        {filtered.map(s => {
           const isActive = s.id === activeId;
           const elapsed = s.status === 'running' ? formatElapsed(s.startedAt, now) : null;
           return (
@@ -86,13 +107,20 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
         })}
       </div>
 
-      <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b' }}>
+      <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b', display: 'flex', gap: 6 }}>
         <button onClick={onMemory} style={{
-          width: '100%', background: 'none', border: '1px solid #1e293b',
+          flex: 1, background: 'none', border: '1px solid #1e293b',
           borderRadius: 6, color: '#475569', padding: '6px 0',
           cursor: 'pointer', fontSize: 12, textAlign: 'center',
         }}>
           Memory
+        </button>
+        <button onClick={onSchedules} style={{
+          flex: 1, background: 'none', border: '1px solid #1e293b',
+          borderRadius: 6, color: '#475569', padding: '6px 0',
+          cursor: 'pointer', fontSize: 12, textAlign: 'center',
+        }}>
+          Schedules
         </button>
       </div>
 
