@@ -4,13 +4,20 @@ from google import genai
 from google.genai import types
 from . import tools
 
-SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, and execute bash commands in the user's session directory.
+SYSTEM_PROMPT = """You are an expert coding assistant. You can read and write files, run code, execute bash commands, and interact with GitHub repositories.
 
 When working on a task:
 - Always explain what you're doing before and after each step
 - Use tools to verify your work (run code to test it)
 - If a task has multiple steps, work through them systematically
-- When writing code, prefer clarity and correctness over brevity"""
+- When writing code, prefer clarity and correctness over brevity
+
+For GitHub tasks:
+- Start by cloning the repo with clone_repo using "owner/repo" format
+- Always create a new branch with git_branch before making changes — never commit directly to main/master
+- Use git_status and git_diff to review changes before committing
+- Write clear commit messages and PR descriptions that explain what changed and why
+- After pushing, use create_pr to open the pull request"""
 
 
 def _session_dir(session_id) -> Path:
@@ -90,7 +97,7 @@ def run(session, prompt: str):
             yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
             agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
 
-            result_text = tools.dispatch(tool_name, args, session_dir)
+            result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
 
             yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
             agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
