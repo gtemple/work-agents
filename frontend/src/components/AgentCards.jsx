@@ -2,10 +2,10 @@ import { useState } from 'react';
 import { formatElapsed, TOOL_ICONS, estimateCost, formatCost, formatTokens } from '../utils';
 
 const STATUS_CONFIG = {
-  running: { label: 'Running', color: '#22d3ee', dot: true },
-  done:    { label: 'Done',    color: '#4ade80', dot: false },
-  error:   { label: 'Error',   color: '#f87171', dot: false },
-  idle:    { label: 'Idle',    color: '#334155', dot: false },
+  running: { label: 'Running', color: '#22d3ee', pulse: true },
+  done:    { label: 'Done',    color: '#4ade80', pulse: false },
+  error:   { label: 'Error',   color: '#f87171', pulse: false },
+  idle:    { label: 'Idle',    color: '#334155', pulse: false },
 };
 
 const TASK_TYPE_BADGE = {
@@ -24,113 +24,130 @@ const FILTERS = [
   { key: 'error',    label: 'Error' },
 ];
 
-function Card({ session, onSelect, now }) {
+function StatusDot({ status, color }) {
+  const cfg = STATUS_CONFIG[status] ?? STATUS_CONFIG.idle;
+  const dotColor = status === 'running' && color ? color : cfg.color;
+  return (
+    <span style={{
+      display: 'inline-block', width: 7, height: 7, borderRadius: '50%',
+      background: dotColor, flexShrink: 0,
+      boxShadow: cfg.pulse ? `0 0 0 2px ${dotColor}44` : 'none',
+      animation: cfg.pulse ? 'pulse 1.2s ease-in-out infinite' : 'none',
+    }} />
+  );
+}
+
+function Row({ session, onSelect, now }) {
   const running = session.status === 'running';
   const status = STATUS_CONFIG[session.status] ?? STATUS_CONFIG.idle;
   const elapsed = running ? formatElapsed(session.startedAt, now) : null;
+  const badge = session.linear_task_type && TASK_TYPE_BADGE[session.linear_task_type];
   const lastTool = running && session.liveSteps.length
     ? session.liveSteps.filter(s => s.step_type === 'tool_call').at(-1)?.data?.tool
     : null;
-  const badge = session.linear_task_type && TASK_TYPE_BADGE[session.linear_task_type];
   const cost = (session.inputTokens || session.outputTokens)
     ? formatCost(estimateCost(session.inputTokens || 0, session.outputTokens || 0))
     : null;
+  const tokens = (session.inputTokens || session.outputTokens)
+    ? formatTokens((session.inputTokens || 0) + (session.outputTokens || 0))
+    : null;
+
+  const displayTitle = session.linear_issue_key
+    ? (session.title || '').replace(/^[A-Z]+-\d+:\s*/, '')
+    : (session.title || 'New agent');
 
   return (
-    <button
+    <tr
       onClick={() => onSelect(session.id)}
       style={{
-        background: '#0a1628',
-        border: `1px solid ${running ? session.color + '44' : '#1e293b'}`,
-        borderTop: `2px solid ${running ? session.color : session.color + '66'}`,
-        borderRadius: 10, padding: 0, cursor: 'pointer', textAlign: 'left',
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        boxShadow: running ? `0 4px 24px ${session.color}18` : 'none',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        minHeight: 120,
+        cursor: 'pointer',
+        borderBottom: '1px solid #0d1829',
+        background: running ? `${session.color}08` : 'transparent',
+        transition: 'background 0.1s',
       }}
+      onMouseEnter={e => e.currentTarget.style.background = running ? `${session.color}14` : '#1e293b44'}
+      onMouseLeave={e => e.currentTarget.style.background = running ? `${session.color}08` : 'transparent'}
     >
-      <div style={{ padding: '13px 15px 12px', flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
+      {/* Status */}
+      <td style={{ padding: '11px 0 11px 20px', width: 28 }}>
+        <StatusDot status={session.status} color={session.color} />
+      </td>
 
-        {/* Top row: status + elapsed */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          {status.dot ? (
-            <span style={{
-              width: 6, height: 6, borderRadius: '50%', background: status.color, flexShrink: 0,
-              boxShadow: `0 0 0 2px ${status.color}44`,
-              animation: 'pulse 1.2s ease-in-out infinite',
-            }} />
-          ) : (
-            <span style={{ width: 6, height: 6, borderRadius: '50%', background: status.color, flexShrink: 0 }} />
+      {/* Title + issue key */}
+      <td style={{ padding: '11px 16px 11px 10px', minWidth: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          {session.color && (
+            <span style={{ width: 3, height: 28, borderRadius: 2, background: session.color, flexShrink: 0 }} />
           )}
-          <span style={{ fontSize: 10, fontWeight: 600, color: status.color, textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-            {status.label}
-          </span>
+          <div style={{ minWidth: 0 }}>
+            {session.linear_issue_key && (
+              <span style={{ fontSize: 10, color: '#3b82f6', marginRight: 6 }}>
+                {session.linear_issue_key}
+              </span>
+            )}
+            <span style={{
+              fontSize: 13, color: running ? '#f1f5f9' : '#94a3b8', fontWeight: running ? 500 : 400,
+              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'inline',
+            }}>
+              {displayTitle}
+            </span>
+          </div>
+        </div>
+      </td>
+
+      {/* Type badges */}
+      <td style={{ padding: '11px 16px', whiteSpace: 'nowrap', width: 120 }}>
+        <div style={{ display: 'flex', gap: 5, alignItems: 'center' }}>
           {session.is_work && (
             <span style={{
               fontSize: 9, color: '#3b82f6', background: '#0d1f3c',
-              border: '1px solid #3b82f633', borderRadius: 3, padding: '0 5px', marginLeft: 2,
-            }}>
-              work
-            </span>
+              border: '1px solid #3b82f633', borderRadius: 3, padding: '1px 5px',
+            }}>work</span>
           )}
-          {elapsed && (
-            <span style={{ fontSize: 10, color: '#475569', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-              {elapsed}
-            </span>
-          )}
-        </div>
-
-        {/* Title */}
-        <div style={{ flex: 1 }}>
-          {session.linear_issue_key && (
-            <div style={{ fontSize: 10, color: '#3b82f6', marginBottom: 2 }}>{session.linear_issue_key}</div>
-          )}
-          <div style={{
-            fontSize: 13, color: '#e2e8f0', fontWeight: 500, lineHeight: 1.45,
-            display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden',
-          }}>
-            {session.linear_issue_key
-              ? (session.title || '').replace(/^[A-Z]+-\d+:\s*/, '')
-              : (session.title || 'New agent')}
-          </div>
-        </div>
-
-        {/* Bottom row: tool ticker / meta */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 18 }}>
           {badge && (
             <span style={{
               fontSize: 9, color: badge.color, border: `1px solid ${badge.color}44`,
               borderRadius: 3, padding: '1px 5px',
-            }}>
-              {badge.label}
-            </span>
+            }}>{badge.label}</span>
           )}
-
-          {lastTool ? (
-            <span style={{ fontSize: 11, color: session.color }}>
-              {TOOL_ICONS[lastTool] || '🔧'} {lastTool}
-            </span>
-          ) : session.stepCount > 0 ? (
-            <span style={{ fontSize: 11, color: '#475569' }}>
-              {session.stepCount} step{session.stepCount !== 1 ? 's' : ''}
-            </span>
-          ) : null}
-
-          {cost && (
-            <span style={{ fontSize: 11, color: '#334155', marginLeft: 'auto', fontVariantNumeric: 'tabular-nums' }}>
-              {cost}
-            </span>
-          )}
-
-          {session.status === 'error' && !lastTool && (
-            <span style={{ fontSize: 11, color: '#f87171' }}>Failed</span>
+          {!session.is_work && !badge && (
+            <span style={{ fontSize: 9, color: '#334155' }}>personal</span>
           )}
         </div>
-      </div>
+      </td>
 
-      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
-    </button>
+      {/* Live activity */}
+      <td style={{ padding: '11px 16px', width: 180 }}>
+        {lastTool ? (
+          <span style={{ fontSize: 11, color: session.color }}>
+            {TOOL_ICONS[lastTool] || '🔧'} {lastTool}…
+          </span>
+        ) : session.stepCount > 0 ? (
+          <span style={{ fontSize: 11, color: '#475569' }}>
+            {session.stepCount} step{session.stepCount !== 1 ? 's' : ''}
+          </span>
+        ) : session.status === 'error' ? (
+          <span style={{ fontSize: 11, color: '#f87171' }}>Failed</span>
+        ) : null}
+      </td>
+
+      {/* Tokens + cost */}
+      <td style={{ padding: '11px 16px', width: 130, textAlign: 'right' }}>
+        {tokens && (
+          <span style={{ fontSize: 11, color: '#334155', fontVariantNumeric: 'tabular-nums' }}
+            title={`${formatTokens(session.inputTokens || 0)} in / ${formatTokens(session.outputTokens || 0)} out`}>
+            {tokens} · {cost}
+          </span>
+        )}
+      </td>
+
+      {/* Elapsed / date */}
+      <td style={{ padding: '11px 20px 11px 0', width: 90, textAlign: 'right' }}>
+        <span style={{ fontSize: 11, color: '#334155', fontVariantNumeric: 'tabular-nums' }}>
+          {elapsed ?? ''}
+        </span>
+      </td>
+    </tr>
   );
 }
 
@@ -142,14 +159,13 @@ function FilterTab({ label, active, count, onClick }) {
       borderRadius: 6, color: active ? '#f1f5f9' : '#475569',
       padding: '5px 12px', cursor: 'pointer', fontSize: 12, fontWeight: active ? 500 : 400,
       display: 'flex', alignItems: 'center', gap: 5,
-      transition: 'all 0.15s',
     }}>
       {label}
       {count > 0 && (
         <span style={{
           background: active ? '#334155' : '#1e293b',
           color: active ? '#94a3b8' : '#475569',
-          borderRadius: 10, padding: '0 5px', fontSize: 10, minWidth: 16, textAlign: 'center',
+          borderRadius: 10, padding: '0 5px', fontSize: 10,
         }}>
           {count}
         </span>
@@ -187,7 +203,6 @@ export default function AgentCards({ sessions, onSelect, onNew, now }) {
              (s.linear_issue_key || '').toLowerCase().includes(q);
     });
 
-  // Running first, then by created_at desc
   const sorted = [...filtered].sort((a, b) => {
     if (a.status === 'running' && b.status !== 'running') return -1;
     if (b.status === 'running' && a.status !== 'running') return 1;
@@ -195,28 +210,29 @@ export default function AgentCards({ sessions, onSelect, onNew, now }) {
   });
 
   return (
-    <div style={{ height: '100%', overflowY: 'auto', padding: '28px 28px 40px' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
 
       {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 20 }}>
-        <div>
-          <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Dashboard</h1>
-          <p style={{ margin: '4px 0 0', fontSize: 13, color: '#475569' }}>
-            {counts.running > 0 ? `${counts.running} running · ` : ''}{counts.all} session{counts.all !== 1 ? 's' : ''}
-            {counts.work > 0 ? ` · ${counts.work} work` : ''}
-          </p>
+      <div style={{ padding: '24px 24px 0', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <h1 style={{ margin: 0, fontSize: 20, fontWeight: 700, color: '#f1f5f9' }}>Dashboard</h1>
+            <p style={{ margin: '3px 0 0', fontSize: 12, color: '#475569' }}>
+              {counts.running > 0 ? `${counts.running} running · ` : ''}
+              {counts.all} session{counts.all !== 1 ? 's' : ''}
+              {counts.work > 0 ? ` · ${counts.work} work` : ''}
+            </p>
+          </div>
+          <button onClick={onNew} style={{
+            background: '#1d4ed8', border: 'none', borderRadius: 7,
+            color: '#fff', padding: '7px 16px', cursor: 'pointer', fontSize: 13, fontWeight: 500,
+          }}>
+            + New agent
+          </button>
         </div>
-        <button onClick={onNew} style={{
-          background: '#1d4ed8', border: 'none', borderRadius: 8,
-          color: '#fff', padding: '8px 18px', cursor: 'pointer', fontSize: 13, fontWeight: 500,
-        }}>
-          + New agent
-        </button>
-      </div>
 
-      {/* Filters + search */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 20, flexWrap: 'wrap' }}>
-        <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+        {/* Filters + search */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
           {FILTERS.map(f => (
             <FilterTab
               key={f.key}
@@ -226,36 +242,48 @@ export default function AgentCards({ sessions, onSelect, onNew, now }) {
               onClick={() => setFilter(f.key)}
             />
           ))}
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search…"
+            style={{
+              marginLeft: 'auto', background: '#1e293b', border: '1px solid #334155',
+              borderRadius: 6, color: '#f1f5f9', padding: '5px 10px',
+              fontSize: 12, outline: 'none', width: 150,
+            }}
+          />
         </div>
-        <input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search…"
-          style={{
-            marginLeft: 'auto', background: '#1e293b', border: '1px solid #334155',
-            borderRadius: 6, color: '#f1f5f9', padding: '5px 10px',
-            fontSize: 12, outline: 'none', width: 160,
-          }}
-        />
       </div>
 
-      {/* Grid */}
-      {sorted.length === 0 ? (
-        <div style={{ textAlign: 'center', marginTop: 80, color: '#334155' }}>
-          <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
-          <div style={{ fontSize: 14 }}>
-            {search || filter !== 'all' ? 'No sessions match this filter.' : 'No agents yet. Start one above.'}
+      {/* Table */}
+      <div style={{ flex: 1, overflowY: 'auto', marginTop: 16 }}>
+        {sorted.length === 0 ? (
+          <div style={{ textAlign: 'center', marginTop: 80, color: '#334155' }}>
+            <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
+            <div style={{ fontSize: 14 }}>
+              {search || filter !== 'all' ? 'No sessions match this filter.' : 'No agents yet. Start one above.'}
+            </div>
           </div>
-        </div>
-      ) : (
-        <div style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))',
-          gap: 12,
-        }}>
-          {sorted.map(s => <Card key={s.id} session={s} onSelect={onSelect} now={now} />)}
-        </div>
-      )}
+        ) : (
+          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+            <thead>
+              <tr style={{ borderBottom: '1px solid #1e293b' }}>
+                <th style={{ width: 28 }} />
+                <th style={{ padding: '6px 16px 6px 10px', textAlign: 'left', fontSize: 10, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Session</th>
+                <th style={{ padding: '6px 16px', textAlign: 'left', fontSize: 10, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', width: 120 }}>Type</th>
+                <th style={{ padding: '6px 16px', textAlign: 'left', fontSize: 10, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', width: 180 }}>Activity</th>
+                <th style={{ padding: '6px 16px', textAlign: 'right', fontSize: 10, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', width: 130 }}>Usage</th>
+                <th style={{ padding: '6px 20px 6px 0', textAlign: 'right', fontSize: 10, color: '#334155', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em', width: 90 }}>Time</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(s => <Row key={s.id} session={s} onSelect={onSelect} now={now} />)}
+            </tbody>
+          </table>
+        )}
+      </div>
+
+      <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }`}</style>
     </div>
   );
 }
