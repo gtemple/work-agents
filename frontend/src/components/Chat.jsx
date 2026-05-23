@@ -82,12 +82,10 @@ export default function Chat({ session, onSend, onSaveSystemPrompt, onApprove, o
               {session.stepCount > 0 ? `${session.stepCount} steps · ` : ''}{elapsed}
             </span>
           )}
-          {cost !== null && (
-            <span style={{ fontSize: 11, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}
-              title={`${formatTokens(session.inputTokens)}in / ${formatTokens(session.outputTokens)}out`}>
-              {formatTokens(totalTokens)} tok · {formatCost(cost)}
-            </span>
-          )}
+          <span style={{ fontSize: 11, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}
+            title={`${formatTokens(session.inputTokens || 0)}in / ${formatTokens(session.outputTokens || 0)}out`}>
+            {formatTokens(totalTokens)} tok{cost !== null ? ` · ${formatCost(cost)}` : ''}
+          </span>
           <span style={{ fontSize: 11, color: '#475569' }}>gemini-3.5-flash</span>
         </div>
         <style>{`@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }`}</style>

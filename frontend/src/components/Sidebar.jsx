@@ -107,17 +107,14 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
         })}
       </div>
 
-      {(globalInputTokens + globalOutputTokens) > 0 && (
-        <div style={{ padding: '8px 14px', borderTop: '1px solid #1e293b' }}>
-          <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>All sessions</div>
-          <div style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}
-            title={`${formatTokens(globalInputTokens)} in / ${formatTokens(globalOutputTokens)} out`}>
-            {formatTokens(globalInputTokens + globalOutputTokens)} tok
-            {' · '}
-            {formatCost(estimateCost(globalInputTokens, globalOutputTokens))}
-          </div>
+      <div style={{ padding: '8px 14px', borderTop: '1px solid #1e293b' }}>
+        <div style={{ fontSize: 10, color: '#334155', marginBottom: 2 }}>All sessions</div>
+        <div style={{ fontSize: 12, color: '#94a3b8', fontVariantNumeric: 'tabular-nums' }}
+          title={`${formatTokens(globalInputTokens)} in / ${formatTokens(globalOutputTokens)} out`}>
+          {formatTokens(globalInputTokens + globalOutputTokens)} tok
+          {(globalInputTokens + globalOutputTokens) > 0 ? ` · ${formatCost(estimateCost(globalInputTokens, globalOutputTokens))}` : ''}
         </div>
-      )}
+      </div>
 
       <div style={{ padding: '10px 14px', borderTop: '1px solid #1e293b', display: 'flex', gap: 6 }}>
         <button onClick={onMemory} style={{
