@@ -40,9 +40,15 @@ def run(session, prompt: str):
 
     session_dir = _session_dir(session.id)
     if session_dir.exists():
+        context_parts = []
         files = [f.name for f in session_dir.iterdir() if f.is_file()]
         if files:
-            prompt = f'[Available files in session: {", ".join(files)}]\n\n{prompt}'
+            context_parts.append(f'Uploaded files: {", ".join(files)}')
+        dirs = [d.name for d in session_dir.iterdir() if d.is_dir() and (d / '.git').exists()]
+        if dirs:
+            context_parts.append(f'Cloned repos: {", ".join(dirs)}')
+        if context_parts:
+            prompt = f'[Session context — {"; ".join(context_parts)}]\n\n{prompt}'
 
     history.append(types.Content(role='user', parts=[types.Part(text=prompt)]))
 
