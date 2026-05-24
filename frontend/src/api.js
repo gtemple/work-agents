@@ -108,6 +108,16 @@ export async function getSessionEvents(sessionId) {
   return res.json();
 }
 
+export async function listActionItems() {
+  const res = await fetch('/api/action-items/');
+  return res.json();
+}
+
+export async function actionItemAct(id, action) {
+  const res = await fetch(`/api/action-items/${id}/${action}/`, { method: 'POST' });
+  return res.json();
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);

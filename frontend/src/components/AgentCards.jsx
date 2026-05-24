@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { formatElapsed, TOOL_ICONS, estimateCost, formatCost, formatTokens } from '../utils';
+import ActionItems from './ActionItems';
 
 const STATUS_CONFIG = {
   running: { label: 'Running', color: '#22d3ee', pulse: true },
@@ -174,7 +175,7 @@ function FilterTab({ label, active, count, onClick }) {
   );
 }
 
-export default function AgentCards({ sessions, onSelect, onNew, now }) {
+export default function AgentCards({ sessions, onSelect, onNew, now, onNavigate }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -255,8 +256,10 @@ export default function AgentCards({ sessions, onSelect, onNew, now }) {
         </div>
       </div>
 
+      <ActionItems onNavigate={onNavigate} />
+
       {/* Table */}
-      <div style={{ flex: 1, overflowY: 'auto', marginTop: 16 }}>
+      <div style={{ flex: 1, overflowY: 'auto', marginTop: 0 }}>
         {sorted.length === 0 ? (
           <div style={{ textAlign: 'center', marginTop: 80, color: '#334155' }}>
             <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>

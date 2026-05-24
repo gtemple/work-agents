@@ -391,6 +391,70 @@ def linear_sync(request):
 
 # ── Schedules ─────────────────────────────────────────────────────────────────
 
+def _action_item_dict(item):
+    return {
+        'id': item.id,
+        'title': item.title,
+        'description': item.description,
+        'type': item.type,
+        'status': item.status,
+        'category': item.category,
+        'repo': item.repo,
+        'session_id': str(item.session_id) if item.session_id else None,
+        'created_at': item.created_at.isoformat(),
+    }
+
+
+@require_http_methods(['GET'])
+def list_action_items(request):
+    from .models import ActionItem
+    active = ActionItem.objects.filter(status='active').order_by('type', 'queue_position')
+    saved  = ActionItem.objects.filter(status='saved').order_by('-created_at')
+    return JsonResponse({
+        'active': [_action_item_dict(i) for i in active],
+        'saved':  [_action_item_dict(i) for i in saved],
+    })
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def action_item_act(request, item_id, action):
+    from .models import ActionItem
+    from . import suggestions as sug
+
+    try:
+        item = ActionItem.objects.get(id=item_id)
+    except ActionItem.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+
+    if action == 'save':
+        item.status = 'saved'
+        item.save(update_fields=['status'])
+        sug.promote_queued_to_active()
+
+    elif action == 'dismiss':
+        item.status = 'dismissed'
+        item.save(update_fields=['status'])
+        sug.promote_queued_to_active()
+
+    elif action == 'investigate':
+        session = Session.objects.create(
+            title=item.title,
+            system_prompt=f'{item.title}\n\n{item.description}',
+            is_work=(item.type == 'work'),
+        )
+        item.session = session
+        item.status = 'saved'  # keep it accessible in saved list
+        item.save(update_fields=['session', 'status'])
+        sug.promote_queued_to_active()
+        return JsonResponse({'session_id': str(session.id)})
+
+    elif action == 'refresh':
+        sug.daily_refresh()
+
+    return JsonResponse({'ok': True})
+
+
 def _schedule_dict(s):
     return {
         'id': s.id,

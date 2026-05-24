@@ -99,6 +99,41 @@ class GlobalEvent(models.Model):
         ordering = ['id']
 
 
+class UserContext(models.Model):
+    """Singleton — one row, ever. Persistent knowledge about the user built up over time."""
+    content = models.TextField(blank=True)
+    suggestions_generated_at = models.DateTimeField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(id=1)
+        return obj
+
+
+class ActionItem(models.Model):
+    STATUS_CHOICES = [
+        ('active', 'Active'),       # shown in the 8 slots
+        ('queued', 'Queued'),       # waiting to fill a slot
+        ('saved', 'Saved'),         # user saved for later
+        ('dismissed', 'Dismissed'), # user said no
+    ]
+    TYPE_CHOICES = [('work', 'Work'), ('personal', 'Personal')]
+
+    title = models.CharField(max_length=255)
+    description = models.TextField()
+    type = models.CharField(max_length=16, choices=TYPE_CHOICES)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='queued')
+    category = models.CharField(max_length=64, blank=True)
+    repo = models.CharField(max_length=255, blank=True)
+    session = models.ForeignKey('Session', null=True, blank=True, on_delete=models.SET_NULL)
+    queue_position = models.PositiveIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['queue_position', '-created_at']
+
+
 class RepoMemory(models.Model):
     """Persistent knowledge base for a repository, structured as markdown sections.
     Shared across all agents working on the same repo."""

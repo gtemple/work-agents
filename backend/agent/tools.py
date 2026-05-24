@@ -287,6 +287,29 @@ DECLARATIONS = [
         },
     },
     {
+        'name': 'read_user_context',
+        'description': 'Read persistent context about the user — their preferences, working style, interests, and past decisions. Useful before making suggestions or tailoring your approach.',
+        'parameters': {'type': 'object', 'properties': {}},
+    },
+    {
+        'name': 'update_user_context',
+        'description': 'Update a named section of the user context document. Call this when you learn something meaningful about the user that would help future agents — e.g. a preference they expressed, a decision they made, a technology they like or dislike.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'section': {
+                    'type': 'string',
+                    'description': 'Section name, e.g. "Preferences", "Working Style", "Interests", "Recent Decisions"',
+                },
+                'content': {
+                    'type': 'string',
+                    'description': 'Markdown content for this section.',
+                },
+            },
+            'required': ['section', 'content'],
+        },
+    },
+    {
         'name': 'read_repo_memory',
         'description': (
             'Read the persistent knowledge base for a repository. '
@@ -517,6 +540,18 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         from .models import Memory
         deleted, _ = Memory.objects.filter(key=args['key']).delete()
         return f'Deleted memory: {args["key"]}' if deleted else f'No memory found for key: {args["key"]}'
+
+    elif tool_name == 'read_user_context':
+        from .models import UserContext
+        ctx = UserContext.get()
+        return ctx.content if ctx.content.strip() else 'No user context stored yet.'
+
+    elif tool_name == 'update_user_context':
+        from .models import UserContext
+        ctx = UserContext.get()
+        ctx.content = _upsert_section(ctx.content, args['section'], args['content'])
+        ctx.save()
+        return f'Updated "{args["section"]}" in user context.'
 
     elif tool_name == 'read_repo_memory':
         from .models import RepoMemory

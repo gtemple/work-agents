@@ -16,4 +16,6 @@ urlpatterns = [
     path('memory/<str:key>/', views.memory_detail),
     path('schedules/', views.list_schedules),
     path('schedules/<int:schedule_id>/', views.schedule_detail),
+    path('action-items/', views.list_action_items),
+    path('action-items/<int:item_id>/<str:action>/', views.action_item_act),
 ]

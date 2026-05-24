@@ -323,7 +323,7 @@ export default function App() {
       <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => navigate('/')} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Routes>
-          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} />} />
+          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} onNavigate={switchTo} />} />
           <Route path="/session/:id" element={<SessionView sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
         </Routes>
       </div>

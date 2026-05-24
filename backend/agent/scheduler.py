@@ -13,8 +13,20 @@ def _loop():
         try:
             from django.utils import timezone
             from datetime import timedelta
-            from .models import Schedule, Session
+            from .models import Schedule, Session, UserContext
             from . import agent_loop
+            from . import suggestions as sug
+
+            # Daily action-item refresh
+            ctx = UserContext.get()
+            if (
+                ctx.suggestions_generated_at is None
+                or (timezone.now() - ctx.suggestions_generated_at).total_seconds() > 86400
+            ):
+                try:
+                    sug.daily_refresh()
+                except Exception:
+                    logger.exception('Action item refresh failed')
 
             now = timezone.now()
             for schedule in Schedule.objects.filter(enabled=True, next_run__lte=now):
