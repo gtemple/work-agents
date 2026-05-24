@@ -419,22 +419,18 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         if not github_token:
             return 'Error: GITHUB_TOKEN is not configured in .env'
 
-        auth_url = f'https://x-access-token:{github_token}@github.com/{slug}.git'
-        repo_name = slug.split('/')[-1]
-        clone_dir = session_dir / repo_name
-        clone_dir.parent.mkdir(parents=True, exist_ok=True)
+        from . import repocache
+        clone_dir, source = repocache.get_local_clone(slug, session_dir, github_token)
 
-        result = sandbox.git_exec(f'git clone "{auth_url}" "{repo_name}"', session_dir, timeout=120)
-        if result['exit_code'] != 0:
-            err = result['stderr'].replace(github_token, '***')
-            return f'Clone failed: {err}'
+        if not clone_dir.exists():
+            return source  # error message
 
-        # Configure git identity inside the repo
+        # Configure git identity
         sandbox.git_exec('git config user.name "Gemini Agent"', clone_dir)
         sandbox.git_exec('git config user.email "agent@gemini.local"', clone_dir)
 
         context = gh.get_repo_context(clone_dir)
-        return f'Cloned {slug} into {repo_name}/\n\n{context}'
+        return f'Cloned {slug} into {clone_dir.name}/ ({source})\n\n{context}'
 
     elif tool_name == 'git_branch':
         git_root = gh.find_git_root(session_dir)
