@@ -1,9 +1,3 @@
-const CONFIDENCE = {
-  tech_debt: 0.75, pattern: 0.82, new_idea: 0.65,
-  learning: 0.70, workflow: 0.78, maintenance: 0.72,
-  repo_health: 0.85,
-};
-
 export default function TriageQueue({ items, focus, setFocus, actions, onAction }) {
   if (!items?.length) {
     return (
@@ -18,7 +12,6 @@ export default function TriageQueue({ items, focus, setFocus, actions, onAction 
     <div className="queue">
       {items.map((item, i) => {
         const a = actions[item.id];
-        const conf = CONFIDENCE[item.category] ?? 0.75;
         return (
           <div key={item.id} className="queue-row"
             data-focus={focus === i ? '1' : '0'}
@@ -36,11 +29,6 @@ export default function TriageQueue({ items, focus, setFocus, actions, onAction 
             <div className="qr-body">
               <span className="title">{item.title}</span>
               <span className="desc">{item.description}</span>
-              <span className="conf">
-                <span>confidence</span>
-                <span className="bar"><i style={{ width: `${Math.round(conf * 100)}%` }} /></span>
-                <span>{Math.round(conf * 100)}%</span>
-              </span>
             </div>
             <div className="qr-actions">
               <button className="qr-btn primary" onClick={() => onAction(item.id, 'investigate')}>
