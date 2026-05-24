@@ -12,6 +12,6 @@ def serve_spa(request, path=''):
 urlpatterns = [
     path('api/', include('agent.urls')),
     re_path(r'^assets/(?P<path>.*)$', serve, {'document_root': FRONTEND_DIST / 'assets'}),
-    re_path(r'^(?P<path>favicon\.svg|icons\.svg)$', serve, {'document_root': str(FRONTEND_DIST)}),
+    re_path(r'^(?P<path>favicon\.svg|favicon-\d+\.png|apple-touch-icon\.png|favicon-192\.png|favicon-512\.png|manifest\.webmanifest|icons\.svg)$', serve, {'document_root': str(FRONTEND_DIST)}),
     re_path(r'^.*$', serve_spa),
 ] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
