@@ -216,7 +216,7 @@ export default function ActionItems({ onNavigate }) {
           {work.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Work</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {work.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
                 ))}
@@ -228,7 +228,7 @@ export default function ActionItems({ onNavigate }) {
           {personal.length > 0 && (
             <div>
               <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Personal</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {personal.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
                 ))}
