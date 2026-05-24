@@ -582,7 +582,6 @@ export default function App() {
         <WorkspacePanel
           initialTab={openWorkspace}
           onClose={() => setOpenWorkspace(null)}
-          globalModel={globalModel}
         />
       )}
     </div>

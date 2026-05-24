@@ -254,6 +254,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                 # Session totals already written after each API call — just log the usage record
                 TokenUsage.objects.create(
                     session=session,
+                    model=model,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                 )

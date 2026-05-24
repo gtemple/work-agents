@@ -429,7 +429,7 @@ function SchedulesView() {
 }
 
 // ── stats view ────────────────────────────────────────────────────────────────
-function StatsView({ globalModel }) {
+function StatsView() {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
@@ -445,8 +445,7 @@ function StatsView({ globalModel }) {
 
   const { summary, daily, top_sessions } = stats;
   const totalTokens = (summary.total_input_tokens || 0) + (summary.total_output_tokens || 0);
-  // Aggregate cost uses globalModel as best estimate (daily data has no per-model breakdown)
-  const totalCost = estimateCost(summary.total_input_tokens || 0, summary.total_output_tokens || 0, globalModel);
+  const totalCost = summary.total_cost || 0;
   const avgCostPerSession = summary.total_sessions > 0 ? totalCost / summary.total_sessions : 0;
   const avgTokensPerSession = summary.total_sessions > 0 ? totalTokens / summary.total_sessions : 0;
 
@@ -526,11 +525,10 @@ function StatsView({ globalModel }) {
                   const t = (d.input_tokens || 0) + (d.output_tokens || 0);
                   const h = Math.max(2, (t / maxTokens) * 70);
                   const isToday = i === last30.length - 1;
-                  const cost = estimateCost(d.input_tokens || 0, d.output_tokens || 0, globalModel);
                   return (
                     <div key={i} className="col" data-today={isToday ? '1' : '0'} style={{ height: 70 }}>
                       <i style={{ height: `${h}px`, marginTop: `${70 - h}px` }} />
-                      <div className="tip">{d.date} · {(t / 1000).toFixed(1)}k tok · ${cost.toFixed(4)}</div>
+                      <div className="tip">{d.date} · {(t / 1000).toFixed(1)}k tok · ${(d.cost || 0).toFixed(4)}</div>
                     </div>
                   );
                 })}
@@ -591,7 +589,7 @@ function StatsView({ globalModel }) {
 }
 
 // ── workspace overlay ─────────────────────────────────────────────────────────
-export default function WorkspacePanel({ initialTab, onClose, globalModel }) {
+export default function WorkspacePanel({ initialTab, onClose }) {
   const [tab, setTab] = useState(initialTab || 'memory');
 
   useEffect(() => {
@@ -622,7 +620,7 @@ export default function WorkspacePanel({ initialTab, onClose, globalModel }) {
       <div className="ws-body">
         {tab === 'memory'    && <MemoryView />}
         {tab === 'schedules' && <SchedulesView />}
-        {tab === 'stats'     && <StatsView globalModel={globalModel} />}
+        {tab === 'stats'     && <StatsView />}
       </div>
     </div>
   );

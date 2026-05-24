@@ -323,21 +323,37 @@ def memory_detail(request, key):
 
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
+_MODEL_PRICING = {
+    'gemini-2.5-flash-lite': {'input': 0.10,  'output': 0.40},
+    'gemini-2.5-flash':      {'input': 0.30,  'output': 2.50},
+    'gemini-3.5-flash':      {'input': 1.50,  'output': 9.00},
+}
+
+def _token_cost(input_tokens, output_tokens, model):
+    p = _MODEL_PRICING.get(model, _MODEL_PRICING['gemini-2.5-flash'])
+    return (input_tokens / 1e6) * p['input'] + (output_tokens / 1e6) * p['output']
+
+
 @require_http_methods(['GET'])
 def get_stats(request):
     from django.db.models import Sum, Count
     from django.db.models.functions import TruncDate
+    from collections import defaultdict
 
-    totals = TokenUsage.objects.aggregate(
-        total_input=Sum('input_tokens'),
-        total_output=Sum('output_tokens'),
-        total_turns=Count('id'),
+    # Per-model totals
+    model_rows = (
+        TokenUsage.objects
+        .values('model')
+        .annotate(input=Sum('input_tokens'), output=Sum('output_tokens'), turns=Count('id'))
     )
-
-    system_totals = TokenUsage.objects.filter(session__isnull=True).aggregate(
-        input=Sum('input_tokens'),
-        output=Sum('output_tokens'),
-    )
+    total_input = total_output = total_turns = 0
+    total_cost = 0.0
+    for row in model_rows:
+        i, o = row['input'] or 0, row['output'] or 0
+        total_input  += i
+        total_output += o
+        total_turns  += row['turns'] or 0
+        total_cost   += _token_cost(i, o, row['model'] or 'gemini-3.5-flash')
 
     top_sessions = (
         Session.objects
@@ -345,22 +361,30 @@ def get_stats(request):
         .order_by('-input_tokens', '-output_tokens')[:10]
     )
 
-    daily = (
+    # Daily — aggregate per (date, model) then sum cost by date
+    daily_raw = (
         TokenUsage.objects
         .annotate(date=TruncDate('created_at'))
-        .values('date')
+        .values('date', 'model')
         .annotate(input=Sum('input_tokens'), output=Sum('output_tokens'), turns=Count('id'))
         .order_by('date')
     )
+    daily_map = defaultdict(lambda: {'input_tokens': 0, 'output_tokens': 0, 'turns': 0, 'cost': 0.0})
+    for row in daily_raw:
+        d = row['date'].isoformat()
+        i, o = row['input'] or 0, row['output'] or 0
+        daily_map[d]['input_tokens'] += i
+        daily_map[d]['output_tokens'] += o
+        daily_map[d]['turns']         += row['turns'] or 0
+        daily_map[d]['cost']          += _token_cost(i, o, row['model'] or 'gemini-3.5-flash')
 
     return JsonResponse({
         'summary': {
-            'total_input_tokens': totals['total_input'] or 0,
-            'total_output_tokens': totals['total_output'] or 0,
-            'total_turns': totals['total_turns'] or 0,
+            'total_input_tokens': total_input,
+            'total_output_tokens': total_output,
+            'total_turns': total_turns,
             'total_sessions': Session.objects.count(),
-            'system_input_tokens': system_totals['input'] or 0,
-            'system_output_tokens': system_totals['output'] or 0,
+            'total_cost': total_cost,
         },
         'top_sessions': [
             {
@@ -372,13 +396,8 @@ def get_stats(request):
             for s in top_sessions
         ],
         'daily': [
-            {
-                'date': row['date'].isoformat(),
-                'input_tokens': row['input'],
-                'output_tokens': row['output'],
-                'turns': row['turns'],
-            }
-            for row in daily
+            {'date': d, **v}
+            for d, v in sorted(daily_map.items())
         ],
     })
 
