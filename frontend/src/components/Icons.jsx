@@ -52,5 +52,5 @@ export const CATEGORY_ICONS = {
 
 export {
   ArrowsClockwise, CaretDown, Warning, ClipboardText,
-  Robot, Wrench, Lightning,
+  Robot, Wrench, Lightning, FolderOpen,
 };

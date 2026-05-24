@@ -176,7 +176,7 @@ function FilterTab({ label, active, count, onClick }) {
   );
 }
 
-export default function AgentCards({ sessions, onSelect, onNew, now, onNavigate }) {
+export default function AgentCards({ sessions, onSelect, onNew, now, onNavigate, onSessionsChanged }) {
   const [filter, setFilter] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -257,7 +257,7 @@ export default function AgentCards({ sessions, onSelect, onNew, now, onNavigate 
         </div>
       </div>
 
-      <ActionItems onNavigate={onNavigate} />
+      <ActionItems onNavigate={onNavigate} onSessionsChanged={onSessionsChanged} />
 
       {/* Table */}
       <div style={{ flex: 1, overflowY: 'auto', marginTop: 0 }}>

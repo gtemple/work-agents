@@ -18,4 +18,9 @@ urlpatterns = [
     path('schedules/<int:schedule_id>/', views.schedule_detail),
     path('action-items/', views.list_action_items),
     path('action-items/<int:item_id>/<str:action>/', views.action_item_act),
+    path('projects/', views.list_or_create_projects),
+    path('projects/<uuid:project_id>/', views.project_detail),
+    path('context/user/', views.user_context),
+    path('context/repos/', views.list_repo_memories),
+    path('context/repos/<path:repo>/', views.repo_memory_detail),
 ]

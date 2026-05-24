@@ -9,6 +9,11 @@ class Session(models.Model):
         ('test', 'Test'),
         ('refactor', 'Refactor'),
     ]
+    ROLE_CHOICES = [
+        ('standard', 'Standard'),
+        ('orchestrator', 'Orchestrator'),
+        ('task', 'Task'),
+    ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     title = models.CharField(max_length=255, blank=True)
@@ -24,6 +29,20 @@ class Session(models.Model):
     linear_task_type = models.CharField(max_length=32, blank=True, choices=TASK_TYPE_CHOICES)
     # Pending plan from background agent — set when submit_plan is called, cleared after approval
     pending_plan = models.JSONField(null=True, blank=True)
+    # Project membership
+    session_role = models.CharField(max_length=16, choices=ROLE_CHOICES, default='standard')
+    project = models.ForeignKey('Project', null=True, blank=True, on_delete=models.SET_NULL, related_name='tasks')
+
+    class Meta:
+        ordering = ['-created_at']
+
+
+class Project(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    orchestrator = models.OneToOneField('Session', on_delete=models.SET_NULL, null=True, blank=True, related_name='as_project')
+    created_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
         ordering = ['-created_at']
@@ -78,8 +97,9 @@ class Schedule(models.Model):
 
 
 class TokenUsage(models.Model):
-    """One row per completed agent turn. Enables time-series stats."""
-    session = models.ForeignKey(Session, on_delete=models.CASCADE, related_name='token_usage')
+    """One row per API call. session=None for system calls (e.g. suggestion generation)."""
+    session = models.ForeignKey(Session, null=True, blank=True, on_delete=models.CASCADE, related_name='token_usage')
+    source = models.CharField(max_length=32, default='agent')  # agent | suggestions | other
     input_tokens = models.IntegerField()
     output_tokens = models.IntegerField()
     created_at = models.DateTimeField(auto_now_add=True)

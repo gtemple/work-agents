@@ -356,6 +356,23 @@ DECLARATIONS = [
         },
     },
     {
+        'name': 'spawn_task',
+        'description': 'Spawn a new task agent to implement a specific subtask in the background. Only available in project orchestrator sessions.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'title': {'type': 'string', 'description': 'Short title for the task, e.g. "Implement JWT middleware"'},
+                'prompt': {'type': 'string', 'description': 'Full detailed prompt for the task agent. Include all context, repo info, files to change, and approach.'},
+            },
+            'required': ['title', 'prompt'],
+        },
+    },
+    {
+        'name': 'list_project_tasks',
+        'description': 'List all task agents spawned for this project and how many messages each has produced.',
+        'parameters': {'type': 'object', 'properties': {}},
+    },
+    {
         'name': 'submit_plan',
         'description': (
             'For work tasks from Linear: after exploring the codebase, call this to submit '
@@ -390,7 +407,7 @@ DECLARATIONS = [
 ]
 
 
-def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = '') -> str:
+def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = '', session=None) -> str:
     if tool_name == 'run_code':
         result = sandbox.execute(args['language'], args['code'], session_dir)
         parts = []
@@ -570,6 +587,63 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         rm.content = _upsert_section(rm.content, section, content)
         rm.save()
         return f'Updated "{section}" in {repo} knowledge base.'
+
+    elif tool_name == 'spawn_task':
+        if not session:
+            return 'Error: no session context available.'
+        try:
+            project = session.as_project
+        except Exception:
+            return 'Error: this session is not a project orchestrator.'
+
+        from .models import Session as SessionModel, GlobalEvent
+        task_session = SessionModel.objects.create(
+            title=args['title'],
+            project=project,
+            session_role='task',
+        )
+
+        import threading
+        from . import agent_loop as _agent_loop
+        import django.db
+
+        def _run_task():
+            try:
+                for _ in _agent_loop.run(task_session, args['prompt']):
+                    pass
+            except Exception:
+                pass
+            finally:
+                django.db.close_old_connections()
+
+        threading.Thread(target=_run_task, daemon=True).start()
+
+        try:
+            GlobalEvent.objects.create(
+                session=session,
+                event_type='task_spawned',
+                data={'task_session_id': str(task_session.id), 'title': args['title']},
+            )
+        except Exception:
+            pass
+
+        return f'Task spawned: "{args["title"]}" — session ID {task_session.id}. Running in background.'
+
+    elif tool_name == 'list_project_tasks':
+        if not session:
+            return 'No session context.'
+        try:
+            project = session.as_project
+        except Exception:
+            return 'Not a project orchestrator.'
+        tasks = project.tasks.all()
+        if not tasks.exists():
+            return 'No tasks spawned yet.'
+        lines = []
+        for t in tasks:
+            msg_count = t.messages.count()
+            lines.append(f'- **{t.title}** ({msg_count} message{"s" if msg_count != 1 else ""}) — id: {t.id}')
+        return '\n'.join(lines)
 
     elif tool_name == 'submit_plan':
         # Handled specially in agent_loop — dispatch should never be called for this

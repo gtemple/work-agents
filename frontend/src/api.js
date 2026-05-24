@@ -108,6 +108,54 @@ export async function getSessionEvents(sessionId) {
   return res.json();
 }
 
+export async function getUserContext() {
+  const res = await fetch('/api/context/user/');
+  return res.json();
+}
+
+export async function updateUserContext(content) {
+  await fetch('/api/context/user/', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function listRepoMemories() {
+  const res = await fetch('/api/context/repos/');
+  return res.json();
+}
+
+export async function updateRepoMemory(repo, content) {
+  await fetch(`/api/context/repos/${encodeURIComponent(repo)}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function listProjects() {
+  const res = await fetch('/api/projects/');
+  return res.json();
+}
+
+export async function createProject(data) {
+  const res = await fetch('/api/projects/', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function updateProject(id, patch) {
+  await fetch(`/api/projects/${id}/`, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(patch),
+  });
+}
+
 export async function listActionItems() {
   const res = await fetch('/api/action-items/');
   return res.json();

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate, useParams, useLocation, Routes, Route } from 'react-router-dom';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents, getSessionEvents } from './api';
+import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents, getSessionEvents, listProjects, createProject } from './api';
 import Sidebar from './components/Sidebar';
 import Chat from './components/Chat';
 import AgentCards from './components/AgentCards';
@@ -9,6 +9,7 @@ import Toast from './components/Toast';
 import MemoryPanel from './components/MemoryPanel';
 import SchedulePanel from './components/SchedulePanel';
 import StatsPanel from './components/StatsPanel';
+import ProjectView from './components/ProjectView';
 
 const PALETTE = ['#818cf8', '#34d399', '#fb923c', '#f472b6', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
 
@@ -26,6 +27,8 @@ function makeSessionState(s, colorIndex) {
     linear_issue_key: s.linear_issue_key ?? '',
     linear_issue_url: s.linear_issue_url ?? '',
     linear_task_type: s.linear_task_type ?? '',
+    session_role: s.session_role ?? 'standard',
+    project_id: s.project_id ?? null,
   };
 }
 
@@ -81,6 +84,7 @@ function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, n
 
 export default function App() {
   const [sessions, setSessions] = useState([]);
+  const [projects, setProjects] = useState([]);
   const [feed, setFeed] = useState([]);
   const [toasts, setToasts] = useState([]);
   const [now, setNow] = useState(Date.now());
@@ -161,6 +165,19 @@ export default function App() {
               ));
             });
           }
+
+          if (ev.event_type === 'task_spawned') {
+            // A new task session was created — refresh sessions and projects lists
+            listSessions().then(({ sessions: list }) => {
+              setSessions(prev => list.map((s, i) => {
+                const existing = prev.find(p => p.id === s.id);
+                return existing
+                  ? { ...existing, title: s.title, session_role: s.session_role, project_id: s.project_id }
+                  : makeSessionState(s, i);
+              }));
+            });
+            listProjects().then(({ projects: list }) => setProjects(list));
+          }
         }
       } catch (_) {}
     }, 3000);
@@ -178,21 +195,24 @@ export default function App() {
   }, [toasts, dismissToast]);
 
   useEffect(() => {
-    listSessions().then(({ sessions: list }) => {
+    listSessions().then(({ sessions: list, max_event_id }) => {
+      // Start the event poll from the current max so we don't replay historical events
+      // (which would incorrectly mark stalled sessions as running)
+      if (max_event_id) lastEventIdRef.current = max_event_id;
       if (!list.length) return;
       const loaded = list.map((s, i) => ({
         ...makeSessionState(s, i),
         inputTokens: s.input_tokens ?? 0,
         outputTokens: s.output_tokens ?? 0,
-        // Background agent may have already produced a plan — flag it so Sidebar can indicate it
         hasPendingPlan: s.has_pending_plan ?? false,
       }));
       setSessions(loaded);
     });
+    listProjects().then(({ projects: list }) => setProjects(list ?? []));
   }, []);
 
   const refreshSessions = useCallback(() => {
-    listSessions().then(({ sessions: list }) => {
+    return listSessions().then(({ sessions: list }) => {
       setSessions(prev => list.map((s, i) => {
         const existing = prev.find(p => p.id === s.id);
         return existing
@@ -201,13 +221,28 @@ export default function App() {
               title: s.title, is_work: s.is_work,
               linear_issue_key: s.linear_issue_key, linear_issue_url: s.linear_issue_url,
               linear_task_type: s.linear_task_type,
+              session_role: s.session_role, project_id: s.project_id,
               inputTokens:  s.input_tokens ?? existing.inputTokens,
               outputTokens: s.output_tokens ?? existing.outputTokens,
             }
           : { ...makeSessionState(s, i), inputTokens: s.input_tokens ?? 0, outputTokens: s.output_tokens ?? 0 };
       }));
     });
+    listProjects().then(({ projects: list }) => setProjects(list ?? []));
   }, []);
+
+  const newProject = useCallback(async (title, description) => {
+    const p = await createProject({ title, description });
+    setProjects(prev => [p, ...prev]);
+    // The orchestrator session needs to appear in sessions too
+    listSessions().then(({ sessions: list }) => {
+      setSessions(prev => list.map((s, i) => {
+        const existing = prev.find(e => e.id === s.id);
+        return existing ? existing : makeSessionState(s, i);
+      }));
+    });
+    navigate(`/project/${p.id}`);
+  }, [navigate]);
 
   const newAgent = useCallback(async () => {
     const s = await createSession();
@@ -332,11 +367,12 @@ export default function App() {
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} activeId={activeId} onSelect={switchTo} onNew={newAgent} onDashboard={() => navigate('/')} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
+      <Sidebar sessions={sessions} projects={projects} activeId={activeId} onSelect={switchTo} onNew={newAgent} onNewProject={newProject} onDashboard={() => navigate('/')} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <Routes>
-          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} onNavigate={switchTo} />} />
+          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} onNavigate={switchTo} onSessionsChanged={refreshSessions} />} />
           <Route path="/session/:id" element={<SessionView sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
+          <Route path="/project/:id" element={<ProjectView projects={projects} sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
         </Routes>
       </div>
       <ActivityFeed events={feed} now={now} />

@@ -110,6 +110,19 @@ Return JSON only."""
         ),
     )
 
+    if response.usage_metadata:
+        u = response.usage_metadata
+        try:
+            from .models import TokenUsage
+            TokenUsage.objects.create(
+                session=None,
+                source='suggestions',
+                input_tokens=getattr(u, 'prompt_token_count', 0) or 0,
+                output_tokens=getattr(u, 'candidates_token_count', 0) or 0,
+            )
+        except Exception:
+            pass
+
     text = response.candidates[0].content.parts[0].text
     return json.loads(text).get('items', [])
 

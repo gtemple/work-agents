@@ -1,7 +1,8 @@
 import { useState } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { formatTokens, estimateCost, formatCost } from '../utils';
 import { syncLinear } from '../api';
-import { CaretDown, ArrowsClockwise } from './Icons';
+import { CaretDown, ArrowsClockwise, FolderOpen } from './Icons';
 
 const STATUS_DOT = {
   idle:    { color: '#475569', pulse: false },
@@ -103,12 +104,75 @@ function SectionHeader({ label, count, collapsed, onToggle, right }) {
 
 const VIEWS = ['all', 'work', 'personal'];
 
-export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboard, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, onSessionsChanged, now }) {
+function NewProjectModal({ onClose, onCreate }) {
+  const [title, setTitle] = useState('');
+  const [description, setDescription] = useState('');
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!title.trim()) return;
+    onCreate(title.trim(), description.trim());
+    onClose();
+  }
+
+  return (
+    <div style={{
+      position: 'fixed', inset: 0, background: '#00000088',
+      display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000,
+    }} onClick={onClose}>
+      <form onSubmit={handleSubmit} onClick={e => e.stopPropagation()} style={{
+        background: '#0f172a', border: '1px solid #1e293b', borderRadius: 10,
+        padding: 20, width: 320, display: 'flex', flexDirection: 'column', gap: 12,
+      }}>
+        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 600, color: '#f1f5f9' }}>New Project</h3>
+        <input
+          value={title}
+          onChange={e => setTitle(e.target.value)}
+          placeholder="Project title…"
+          autoFocus
+          style={{
+            background: '#1e293b', border: '1px solid #334155', borderRadius: 6,
+            color: '#f1f5f9', padding: '7px 10px', fontSize: 13, outline: 'none',
+          }}
+        />
+        <textarea
+          value={description}
+          onChange={e => setDescription(e.target.value)}
+          placeholder="Brief description (optional)…"
+          rows={3}
+          style={{
+            background: '#1e293b', border: '1px solid #334155', borderRadius: 6,
+            color: '#f1f5f9', padding: '7px 10px', fontSize: 13, outline: 'none',
+            resize: 'vertical', fontFamily: 'inherit',
+          }}
+        />
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} style={{
+            background: 'none', border: '1px solid #1e293b', borderRadius: 6,
+            color: '#475569', padding: '6px 14px', cursor: 'pointer', fontSize: 12,
+          }}>Cancel</button>
+          <button type="submit" style={{
+            background: '#1d4ed8', border: 'none', borderRadius: 6,
+            color: '#fff', padding: '6px 14px', cursor: 'pointer', fontSize: 12, fontWeight: 500,
+          }}>Create</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+export default function Sidebar({ sessions, projects = [], activeId, onSelect, onNew, onNewProject, onDashboard, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, onSessionsChanged, now }) {
+  const navigate = useNavigate();
+  const location = useLocation();
   const [search, setSearch] = useState('');
   const [syncing, setSyncing] = useState(false);
   const [view, setView] = useState('all');
   const [workCollapsed, setWorkCollapsed] = useState(false);
   const [personalCollapsed, setPersonalCollapsed] = useState(false);
+  const [projectsCollapsed, setProjectsCollapsed] = useState(false);
+  const [showNewProject, setShowNewProject] = useState(false);
+
+  const activeProjectId = location.pathname.match(/\/project\/([^/]+)/)?.[1] ?? null;
 
   async function handleSync() {
     setSyncing(true);
@@ -124,8 +188,9 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
     (s.title || 'New agent').toLowerCase().includes(search.toLowerCase()) ||
     (s.linear_issue_key || '').toLowerCase().includes(search.toLowerCase());
 
-  const allWork = sessions.filter(s => s.is_work && matchSearch(s));
-  const allPersonal = sessions.filter(s => !s.is_work && matchSearch(s));
+  const standardSessions = sessions.filter(s => s.session_role === 'standard' || !s.session_role);
+  const allWork = standardSessions.filter(s => s.is_work && matchSearch(s));
+  const allPersonal = standardSessions.filter(s => !s.is_work && matchSearch(s));
 
   const showWork = view === 'all' || view === 'work';
   const showPersonal = view === 'all' || view === 'personal';
@@ -197,6 +262,70 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
 
       {/* Session list */}
       <div style={{ flex: 1, overflowY: 'auto' }}>
+        {/* Projects section */}
+        {projects.length > 0 && (
+          <>
+            <SectionHeader
+              label="Projects"
+              count={projects.length}
+              collapsed={projectsCollapsed}
+              onToggle={() => setProjectsCollapsed(c => !c)}
+              right={
+                <button onClick={() => setShowNewProject(true)} title="New project" style={{
+                  background: 'none', border: 'none', color: '#475569', cursor: 'pointer',
+                  fontSize: 14, lineHeight: 1, padding: 0,
+                }}>+</button>
+              }
+            />
+            {!projectsCollapsed && projects.map(p => {
+              const isActive = p.id === activeProjectId;
+              const orchestrator = sessions.find(s => s.id === p.orchestrator_id);
+              const taskSessions = sessions.filter(s => s.project_id === p.id && s.session_role === 'task');
+              const isRunning = orchestrator?.status === 'running' || taskSessions.some(s => s.status === 'running');
+              const runningTasks = taskSessions.filter(s => s.status === 'running').length;
+              return (
+                <button
+                  key={p.id}
+                  onClick={() => navigate(`/project/${p.id}`)}
+                  style={{
+                    width: '100%', textAlign: 'left',
+                    background: isActive ? '#1e293b' : 'transparent',
+                    border: 'none',
+                    borderLeft: isActive ? '2px solid #a78bfa' : '2px solid transparent',
+                    padding: '8px 12px', cursor: 'pointer',
+                    display: 'flex', alignItems: 'center', gap: 8,
+                    color: isActive ? '#f1f5f9' : '#64748b',
+                  }}
+                >
+                  <FolderOpen size={13} color={isActive ? '#a78bfa' : '#475569'} weight={isActive ? 'fill' : 'regular'} style={{ flexShrink: 0 }} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      {p.title}
+                    </div>
+                    {(isRunning || taskSessions.length > 0) && (
+                      <div style={{ fontSize: 10, color: isRunning ? '#22d3ee' : '#475569', marginTop: 1 }}>
+                        {runningTasks > 0 ? `${runningTasks} task${runningTasks !== 1 ? 's' : ''} running` : `${taskSessions.length} task${taskSessions.length !== 1 ? 's' : ''}`}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+            <div style={{ margin: '4px 12px', borderTop: '1px solid #1e293b' }} />
+          </>
+        )}
+
+        {/* New project button when no projects */}
+        {projects.length === 0 && (
+          <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span style={{ fontSize: 10, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Projects</span>
+            <button onClick={() => setShowNewProject(true)} style={{
+              background: 'none', border: 'none', color: '#475569', cursor: 'pointer',
+              fontSize: 10, padding: 0,
+            }}>+ new</button>
+          </div>
+        )}
+
         {workSessions.length > 0 && (
           <>
             <SectionHeader
@@ -280,6 +409,13 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
       <style>{`
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
       `}</style>
+
+      {showNewProject && (
+        <NewProjectModal
+          onClose={() => setShowNewProject(false)}
+          onCreate={onNewProject}
+        />
+      )}
     </div>
   );
 }

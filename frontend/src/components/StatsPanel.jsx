@@ -63,6 +63,7 @@ export default function StatsPanel({ onClose }) {
 
   const totalTokens = stats ? stats.summary.total_input_tokens + stats.summary.total_output_tokens : 0;
   const totalCost = stats ? estimateCost(stats.summary.total_input_tokens, stats.summary.total_output_tokens) : 0;
+  const systemTokens = stats ? (stats.summary.system_input_tokens + stats.summary.system_output_tokens) : 0;
 
   return (
     <div style={{
@@ -102,7 +103,7 @@ export default function StatsPanel({ onClose }) {
                 <StatCard
                   label="Total cost"
                   value={formatCost(totalCost)}
-                  sub="Gemini 3.5 Flash rates"
+                  sub={systemTokens > 0 ? `incl. ${formatTokens(systemTokens)} system` : 'Gemini 2.5 Flash rates'}
                 />
                 <StatCard
                   label="Sessions"

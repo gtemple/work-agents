@@ -65,6 +65,19 @@ TASK_TYPE_INSTRUCTIONS = {
 - Mock external dependencies (API calls, database)""",
 }
 
+ORCHESTRATOR_SYSTEM_PROMPT = """You are a project orchestrator. Your role is to:
+1. Discuss the project goals with the user and break them into concrete, scoped subtasks
+2. Delegate implementation work by calling spawn_task() — each task runs as an independent agent
+3. Monitor progress with list_project_tasks() and report back to the user
+4. Synthesize results, identify blockers, and plan next steps
+
+You do NOT write code yourself. You think, plan, and coordinate.
+
+When spawning tasks:
+- Each task must be self-contained — the task agent has no memory of this conversation
+- Write detailed prompts: include repo, relevant files, exact changes needed, and the approach to take
+- Design tasks to be independent so they can run in parallel"""
+
 WORK_SYSTEM_PROMPT_PREFIX = """You are working on a Linear issue for the Purposely codebase.
 
 IMPORTANT: Before writing any code you MUST follow these steps in order:
@@ -82,6 +95,14 @@ Do not skip the planning step. The user needs to review and approve your plan be
 def _compose_system_prompt(session) -> str:
     from .models import Memory
     parts = [BASE_SYSTEM_PROMPT]
+
+    if session.session_role == 'orchestrator':
+        try:
+            project = session.as_project
+            parts.append(ORCHESTRATOR_SYSTEM_PROMPT)
+            parts.append(f'## Project: {project.title}\n{project.description}')
+        except Exception:
+            parts.append(ORCHESTRATOR_SYSTEM_PROMPT)
 
     if session.is_work:
         parts.append(WORK_SYSTEM_PROMPT_PREFIX)
@@ -276,7 +297,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                     yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                     agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
                     _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
-                    result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
+                    result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN, session=session)
                     yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                     agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
 
@@ -284,7 +305,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                 yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                 agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
                 _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
-                result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN)
+                result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN, session=session)
                 yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                 agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
 

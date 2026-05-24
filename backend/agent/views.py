@@ -8,7 +8,7 @@ from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent
+from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent, Project
 from . import agent_loop
 from . import approval as approval_mod
 
@@ -80,6 +80,7 @@ def get_session(request, session_id):
 @require_http_methods(['GET'])
 def list_sessions(request):
     sessions = Session.objects.all()
+    max_event_id = GlobalEvent.objects.order_by('-id').values_list('id', flat=True).first() or 0
     return JsonResponse({'sessions': [
         {
             'id': str(s.id), 'title': s.title, 'system_prompt': s.system_prompt,
@@ -90,9 +91,113 @@ def list_sessions(request):
             'linear_issue_url': s.linear_issue_url,
             'linear_task_type': s.linear_task_type,
             'has_pending_plan': s.pending_plan is not None,
+            'session_role': s.session_role,
+            'project_id': str(s.project_id) if s.project_id else None,
         }
         for s in sessions
+    ], 'max_event_id': max_event_id})
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'PATCH'])
+def user_context(request):
+    from .models import UserContext
+    ctx = UserContext.get()
+    if request.method == 'PATCH':
+        data = json.loads(request.body or '{}')
+        if 'content' in data:
+            ctx.content = data['content']
+            ctx.save()
+        return JsonResponse({'ok': True})
+    return JsonResponse({'content': ctx.content, 'updated_at': ctx.updated_at.isoformat()})
+
+
+@require_http_methods(['GET'])
+def list_repo_memories(request):
+    from .models import RepoMemory
+    repos = RepoMemory.objects.all().order_by('-updated_at')
+    return JsonResponse({'repos': [
+        {'repo': r.repo, 'content': r.content, 'updated_at': r.updated_at.isoformat()}
+        for r in repos
     ]})
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'PATCH'])
+def repo_memory_detail(request, repo):
+    from .models import RepoMemory
+    rm, _ = RepoMemory.objects.get_or_create(repo=repo)
+    if request.method == 'PATCH':
+        data = json.loads(request.body or '{}')
+        if 'content' in data:
+            rm.content = data['content']
+            rm.save()
+        return JsonResponse({'ok': True})
+    return JsonResponse({'repo': rm.repo, 'content': rm.content, 'updated_at': rm.updated_at.isoformat()})
+
+
+def _project_dict(p, include_tasks=False):
+    d = {
+        'id': str(p.id),
+        'title': p.title,
+        'description': p.description,
+        'orchestrator_id': str(p.orchestrator_id) if p.orchestrator_id else None,
+        'created_at': p.created_at.isoformat(),
+    }
+    if include_tasks:
+        d['tasks'] = [
+            {
+                'id': str(t.id), 'title': t.title,
+                'input_tokens': t.input_tokens, 'output_tokens': t.output_tokens,
+                'has_pending_plan': t.pending_plan is not None,
+            }
+            for t in p.tasks.all()
+        ]
+    return d
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'POST'])
+def list_or_create_projects(request):
+    if request.method == 'POST':
+        data = json.loads(request.body or '{}')
+        title = data.get('title', 'New Project')
+        description = data.get('description', '')
+
+        orchestrator = Session.objects.create(
+            title=title,
+            system_prompt=description,
+            session_role='orchestrator',
+        )
+        project = Project.objects.create(
+            title=title,
+            description=description,
+            orchestrator=orchestrator,
+        )
+        return JsonResponse(_project_dict(project))
+
+    projects = Project.objects.select_related('orchestrator').prefetch_related('tasks')
+    return JsonResponse({'projects': [_project_dict(p, include_tasks=True) for p in projects]})
+
+
+@csrf_exempt
+@require_http_methods(['GET', 'PATCH'])
+def project_detail(request, project_id):
+    try:
+        project = Project.objects.select_related('orchestrator').prefetch_related('tasks').get(id=project_id)
+    except Project.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+
+    if request.method == 'PATCH':
+        data = json.loads(request.body or '{}')
+        if 'title' in data:
+            project.title = data['title']
+        if 'description' in data:
+            project.description = data['description']
+        project.save()
+        return JsonResponse({'ok': True})
+
+    return JsonResponse(_project_dict(project, include_tasks=True))
 
 
 @csrf_exempt
@@ -214,6 +319,11 @@ def get_stats(request):
         total_turns=Count('id'),
     )
 
+    system_totals = TokenUsage.objects.filter(session__isnull=True).aggregate(
+        input=Sum('input_tokens'),
+        output=Sum('output_tokens'),
+    )
+
     top_sessions = (
         Session.objects
         .filter(input_tokens__gt=0)
@@ -234,6 +344,8 @@ def get_stats(request):
             'total_output_tokens': totals['total_output'] or 0,
             'total_turns': totals['total_turns'] or 0,
             'total_sessions': Session.objects.count(),
+            'system_input_tokens': system_totals['input'] or 0,
+            'system_output_tokens': system_totals['output'] or 0,
         },
         'top_sessions': [
             {

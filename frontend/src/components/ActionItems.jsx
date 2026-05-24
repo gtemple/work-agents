@@ -101,7 +101,7 @@ function SavedItem({ item, onAct, navigating }) {
   );
 }
 
-export default function ActionItems({ onNavigate }) {
+export default function ActionItems({ onNavigate, onSessionsChanged }) {
   const [active, setActive] = useState([]);
   const [saved, setSaved] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,6 +127,7 @@ export default function ActionItems({ onNavigate }) {
       try {
         const data = await actionItemAct(id, action);
         if (data.session_id) {
+          await onSessionsChanged?.();
           onNavigate(data.session_id);
         }
       } finally {
