@@ -147,6 +147,7 @@ class ActionItem(models.Model):
     category = models.CharField(max_length=64, blank=True)
     repo = models.CharField(max_length=255, blank=True)
     session = models.ForeignKey('Session', null=True, blank=True, on_delete=models.SET_NULL)
+    confidence = models.FloatField(null=True, blank=True)
     queue_position = models.PositiveIntegerField(default=0)
     created_at = models.DateTimeField(auto_now_add=True)
 

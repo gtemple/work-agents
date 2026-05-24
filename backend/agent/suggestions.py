@@ -79,6 +79,7 @@ Each suggestion needs:
 - type: "work" or "personal"
 - category: one of repo_health, tech_debt, new_idea, learning, maintenance, workflow, pattern
 - repo: repo slug if relevant (e.g. "purposely/purposely-web"), else empty string
+- confidence: float 0.0–1.0 reflecting how actionable and relevant this suggestion is given what you know about the user. Base it on specificity, recency of related activity, and likely impact. Be calibrated — spread scores across the range, don't cluster around 0.8.
 
 Return JSON only."""
 
@@ -100,8 +101,9 @@ Return JSON only."""
                                 'type':        types.Schema(type=types.Type.STRING),
                                 'category':    types.Schema(type=types.Type.STRING),
                                 'repo':        types.Schema(type=types.Type.STRING),
+                                'confidence':  types.Schema(type=types.Type.NUMBER),
                             },
-                            required=['title', 'description', 'type', 'category', 'repo'],
+                            required=['title', 'description', 'type', 'category', 'repo', 'confidence'],
                         ),
                     ),
                 },
@@ -176,12 +178,15 @@ def fill_queue():
     for i, item in enumerate(items):
         if item.get('type') not in ('work', 'personal'):
             continue
+        raw_conf = item.get('confidence')
+        confidence = max(0.0, min(1.0, float(raw_conf))) if raw_conf is not None else None
         ActionItem.objects.create(
             title=item.get('title', '')[:255],
             description=item.get('description', ''),
             type=item['type'],
             category=item.get('category', ''),
             repo=item.get('repo', ''),
+            confidence=confidence,
             status='queued',
             queue_position=max_pos + i + 1,
         )

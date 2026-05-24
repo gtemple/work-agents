@@ -513,6 +513,7 @@ def _action_item_dict(item):
         'category': item.category,
         'repo': item.repo,
         'session_id': str(item.session_id) if item.session_id else None,
+        'confidence': item.confidence,
         'created_at': item.created_at.isoformat(),
     }
 

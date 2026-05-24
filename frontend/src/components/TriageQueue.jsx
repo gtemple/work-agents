@@ -29,6 +29,13 @@ export default function TriageQueue({ items, focus, setFocus, actions, onAction 
             <div className="qr-body">
               <span className="title">{item.title}</span>
               <span className="desc">{item.description}</span>
+              {item.confidence != null && (
+                <span className="conf">
+                  <span>confidence</span>
+                  <span className="bar"><i style={{ width: `${Math.round(item.confidence * 100)}%` }} /></span>
+                  <span>{Math.round(item.confidence * 100)}%</span>
+                </span>
+              )}
             </div>
             <div className="qr-actions">
               <button className="qr-btn primary" onClick={() => onAction(item.id, 'investigate')}>
