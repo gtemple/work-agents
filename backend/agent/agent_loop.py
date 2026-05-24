@@ -24,6 +24,12 @@ When working on a task:
 - If a task has multiple steps, work through them systematically
 - When writing code, prefer clarity and correctness over brevity
 
+When starting web apps or servers with start_process:
+- ALWAYS bind to 0.0.0.0 (not 127.0.0.1 or localhost) so the app is reachable from other devices on the network
+- For Flask: app.run(host='0.0.0.0', port=...) or pass --host 0.0.0.0 as a flag
+- For Node/Vite/other servers: set the host to 0.0.0.0 in the config or via CLI flag
+- Confirm the port in the start_process call so a clickable URL appears in the dashboard
+
 For GitHub tasks:
 - Start by cloning the repo with clone_repo using "owner/repo" format
 - Always create a new branch with git_branch before making changes — never commit directly to main/master
