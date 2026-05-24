@@ -28,14 +28,12 @@ function ItemCard({ item, onAct, navigating }) {
       padding: '14px 16px',
       display: 'flex',
       flexDirection: 'column',
-      gap: 8,
-      position: 'relative',
       transition: 'border-color 0.15s',
     }}
       onMouseEnter={e => e.currentTarget.style.borderColor = `${color}55`}
       onMouseLeave={e => e.currentTarget.style.borderColor = `${color}22`}
     >
-      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0, flex: 1 }}>
         <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>{icon}</span>
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500, lineHeight: 1.3, marginBottom: 4 }}>
@@ -47,7 +45,7 @@ function ItemCard({ item, onAct, navigating }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 5, marginTop: 2 }}>
+      <div style={{ display: 'flex', gap: 5, marginTop: 10 }}>
         <button
           onClick={() => onAct(item.id, 'investigate')}
           disabled={navigating}
@@ -218,7 +216,7 @@ export default function ActionItems({ onNavigate }) {
           {work.length > 0 && (
             <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Work</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
                 {work.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
                 ))}
@@ -230,7 +228,7 @@ export default function ActionItems({ onNavigate }) {
           {personal.length > 0 && (
             <div>
               <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Personal</div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(200px, 1fr))', gap: 8 }}>
                 {personal.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
                 ))}
