@@ -10,7 +10,10 @@ function sessionStatus(s) {
   return 'queued';
 }
 
-export default function LeftRail({ sessions, selected, onSelect, scope, setScope, onNew, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens }) {
+const MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash'];
+const MODEL_LABEL = { 'gemini-2.5-flash': '2.5F', 'gemini-3.5-flash': '3.5F' };
+
+export default function LeftRail({ sessions, selected, onSelect, scope, setScope, onNew, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, globalModel, onModelChange }) {
   const [openWork, setOpenWork] = useState(true);
   const [openPersonal, setOpenPersonal] = useState(true);
   const [filter, setFilter] = useState('');
@@ -18,7 +21,7 @@ export default function LeftRail({ sessions, selected, onSelect, scope, setScope
   const work = sessions.filter(s => s.is_work);
   const personal = sessions.filter(s => !s.is_work);
   const totalTokens = globalInputTokens + globalOutputTokens;
-  const cost = estimateCost(globalInputTokens, globalOutputTokens);
+  const cost = estimateCost(globalInputTokens, globalOutputTokens, globalModel);
 
   const filterFn = s => !filter || (s.title || '').toLowerCase().includes(filter.toLowerCase()) || (s.linear_issue_key || '').toLowerCase().includes(filter.toLowerCase());
 
@@ -80,6 +83,22 @@ export default function LeftRail({ sessions, selected, onSelect, scope, setScope
         <div className="row"><span>sessions</span><b>{sessions.length}</b></div>
         <div className="row"><span>tokens</span><b>{totalTokens >= 1000 ? `${(totalTokens / 1000).toFixed(1)}k` : totalTokens}</b></div>
         <div className="row"><span>cost</span><b>${cost.toFixed(4)}</b></div>
+        <div className="row" style={{ marginBottom: 6 }}>
+          <span>model</span>
+          <div style={{ display: 'flex', gap: 4 }}>
+            {MODELS.map(m => (
+              <button key={m}
+                style={{ fontSize: 10, padding: '1px 6px', borderRadius: 3,
+                  background: globalModel === m ? 'var(--accent)' : 'transparent',
+                  color: globalModel === m ? '#000' : 'var(--fg-4)',
+                  border: `1px solid ${globalModel === m ? 'var(--accent)' : 'var(--line)'}`,
+                  cursor: 'pointer' }}
+                onClick={() => onModelChange(m)}>
+                {MODEL_LABEL[m]}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="actions">
           <button onClick={onMemory}>memory</button>
           <button onClick={onSchedules}>schedules</button>

@@ -29,6 +29,8 @@ class Session(models.Model):
     linear_task_type = models.CharField(max_length=32, blank=True, choices=TASK_TYPE_CHOICES)
     # Pending plan from background agent — set when submit_plan is called, cleared after approval
     pending_plan = models.JSONField(null=True, blank=True)
+    # Model used for this session
+    model = models.CharField(max_length=64, default='gemini-2.5-flash')
     # Project membership
     session_role = models.CharField(max_length=16, choices=ROLE_CHOICES, default='standard')
     project = models.ForeignKey('Project', null=True, blank=True, on_delete=models.SET_NULL, related_name='tasks')

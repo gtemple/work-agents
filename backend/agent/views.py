@@ -36,7 +36,12 @@ def _start_planning_thread(session):
 @require_http_methods(['POST'])
 def create_session(request):
     data = json.loads(request.body or '{}')
-    session = Session.objects.create(title=data.get('title', ''), system_prompt=data.get('system_prompt', ''))
+    from django.conf import settings as _settings
+    session = Session.objects.create(
+        title=data.get('title', ''),
+        system_prompt=data.get('system_prompt', ''),
+        model=data.get('model', _settings.GEMINI_MODEL),
+    )
     return JsonResponse({'id': str(session.id), 'title': session.title, 'system_prompt': session.system_prompt, 'created_at': session.created_at.isoformat()})
 
 
@@ -93,6 +98,7 @@ def list_sessions(request):
             'has_pending_plan': s.pending_plan is not None,
             'session_role': s.session_role,
             'project_id': str(s.project_id) if s.project_id else None,
+            'model': s.model,
         }
         for s in sessions
     ], 'max_event_id': max_event_id})

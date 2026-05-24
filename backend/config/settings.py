@@ -53,7 +53,7 @@ CORS_ALLOW_ALL_ORIGINS = True
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
-GEMINI_MODEL = 'gemini-3.5-flash'
+GEMINI_MODEL = os.environ.get('GEMINI_MODEL', 'gemini-2.5-flash')
 GITHUB_TOKEN = os.environ.get('GITHUB_TOKEN', '')
 GITHUB_USERNAME = os.environ.get('GITHUB_USERNAME', '')
 LINEAR_API_KEY = os.environ.get('LINEAR_API_KEY', '')

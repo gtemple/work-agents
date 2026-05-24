@@ -1,9 +1,13 @@
-// Gemini 3.5 Flash pricing — check ai.google.dev/pricing for updates
-const PRICE_INPUT_PER_M = 0.10;   // $ per 1M input tokens
-const PRICE_OUTPUT_PER_M = 0.40;  // $ per 1M output tokens
+// Gemini pricing per 1M tokens — see ai.google.dev/pricing
+const PRICING = {
+  'gemini-2.5-flash': { input: 0.075, output: 0.30 },
+  'gemini-3.5-flash': { input: 0.10,  output: 0.40 },  // update if Google publishes exact rates
+};
+const DEFAULT_PRICING = { input: 0.075, output: 0.30 };
 
-export function estimateCost(inputTokens, outputTokens) {
-  return (inputTokens / 1e6) * PRICE_INPUT_PER_M + (outputTokens / 1e6) * PRICE_OUTPUT_PER_M;
+export function estimateCost(inputTokens, outputTokens, model) {
+  const p = PRICING[model] || DEFAULT_PRICING;
+  return (inputTokens / 1e6) * p.input + (outputTokens / 1e6) * p.output;
 }
 
 export function formatCost(dollars) {

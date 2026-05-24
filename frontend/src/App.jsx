@@ -42,6 +42,7 @@ function makeSessionState(s, idx) {
     session_role: s.session_role ?? 'standard',
     project_id: s.project_id ?? null,
     hasPendingPlan: s.has_pending_plan ?? false,
+    model: s.model ?? 'gemini-2.5-flash',
   };
 }
 
@@ -139,6 +140,7 @@ export default function App() {
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
+  const [globalModel, setGlobalModel]     = useState(() => localStorage.getItem('globalModel') || 'gemini-2.5-flash');
 
   const sessionsRef    = useRef(sessions);
   const lastEventIdRef = useRef(0);
@@ -306,11 +308,11 @@ export default function App() {
   }, []);
 
   const newAgent = useCallback(async () => {
-    const s = await createSession();
+    const s = await createSession('', globalModel);
     const ns = makeSessionState(s, sessionsRef.current.length);
     setSessions(prev => [ns, ...prev]);
     openSession(s.id);
-  }, [openSession]);
+  }, [openSession, globalModel]);
 
   const send = useCallback((sessionId, prompt) => {
     const sess = sessionsRef.current.find(s => s.id === sessionId);
@@ -417,7 +419,7 @@ export default function App() {
 
   const totals = useMemo(() => {
     const tokens = sessions.reduce((sum, s) => sum + (s.inputTokens || 0) + (s.outputTokens || 0), 0);
-    const cost   = sessions.reduce((sum, s) => sum + estimateCost(s.inputTokens || 0, s.outputTokens || 0), 0);
+    const cost   = sessions.reduce((sum, s) => sum + estimateCost(s.inputTokens || 0, s.outputTokens || 0, s.model), 0);
     const queued = sessions.filter(s => getSessionStatus(s) === 'queued').length;
     return { tokens, cost, queued };
   }, [sessions]);
@@ -482,6 +484,8 @@ export default function App() {
         onStats={() => { setOpenWorkspace('stats'); setDrawerOpen(false); }}
         globalInputTokens={globalIn}
         globalOutputTokens={globalOut}
+        globalModel={globalModel}
+        onModelChange={m => { setGlobalModel(m); localStorage.setItem('globalModel', m); }}
       />
 
       <main className="main">

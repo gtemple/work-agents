@@ -166,6 +166,7 @@ def _post_linear_comment(session, text: str):
 
 def run(session, prompt: str, skip_gated: bool = False):
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    model = getattr(session, 'model', None) or settings.GEMINI_MODEL
 
     history = []
     for msg in session.messages.all():
@@ -195,7 +196,7 @@ def run(session, prompt: str, skip_gated: bool = False):
 
     while True:
         response = client.models.generate_content(
-            model=settings.GEMINI_MODEL,
+            model=model,
             contents=history,
             config=types.GenerateContentConfig(
                 system_instruction=_compose_system_prompt(session),
@@ -205,8 +206,10 @@ def run(session, prompt: str, skip_gated: bool = False):
 
         if response.usage_metadata:
             u = response.usage_metadata
-            total_input_tokens += getattr(u, 'prompt_token_count', 0) or 0
+            total_input_tokens  += getattr(u, 'prompt_token_count', 0) or 0
             total_output_tokens += getattr(u, 'candidates_token_count', 0) or 0
+            # thinking tokens are billed at a higher rate — track separately via output
+            total_output_tokens += getattr(u, 'thoughts_token_count', 0) or 0
             yield {'type': 'tokens', 'payload': {
                 'input': total_input_tokens,
                 'output': total_output_tokens,
