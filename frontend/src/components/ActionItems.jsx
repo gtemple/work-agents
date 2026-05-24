@@ -179,18 +179,21 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
           <div style={{ display: 'flex', gap: 6, marginLeft: 'auto', alignItems: 'center' }}>
             {saved.length > 0 && (
               <button onClick={() => setSavedOpen(o => !o)} style={{
-                background: 'none', border: '1px solid #1e293b', borderRadius: 5,
-                color: '#475569', padding: '3px 8px', cursor: 'pointer', fontSize: 10,
+                background: savedOpen ? '#1e293b' : 'transparent',
+                border: '1px solid #1e293b', borderRadius: 5,
+                color: '#64748b', padding: '3px 8px', cursor: 'pointer', fontSize: 10,
               }}>
                 Saved ({saved.length})
               </button>
             )}
             <button onClick={handleRefresh} disabled={refreshing} style={{
-              background: 'none', border: '1px solid #1e293b', borderRadius: 5,
-              color: '#334155', padding: '3px 8px', cursor: 'pointer', fontSize: 10,
+              display: 'flex', alignItems: 'center', gap: 4,
+              background: 'transparent', border: '1px solid #1e293b', borderRadius: 5,
+              color: '#64748b', padding: '3px 8px', cursor: 'pointer', fontSize: 10,
               opacity: refreshing ? 0.5 : 1,
             }}>
-              {refreshing ? 'Generating…' : <><ArrowsClockwise size={10} style={{ marginRight: 4 }} />Refresh</>}
+              <ArrowsClockwise size={10} />
+              {refreshing ? 'Generating…' : 'Refresh'}
             </button>
           </div>
         )}
