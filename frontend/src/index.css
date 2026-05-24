@@ -295,7 +295,7 @@ body::before {
 .sess-row .st.queued   { background: transparent; border: 1px solid var(--fg-4); }
 .sess-row .st.planned  { background: transparent; border: 1px solid var(--info); }
 .sess-row .st.needs_input { background: var(--accent); animation: needs-pulse 1.2s ease-in-out infinite; box-shadow: 0 0 0 2px rgba(230,179,74,.15), 0 0 6px rgba(230,179,74,.8); }
-.sess-row .title { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.sess-row .title { display: flex; align-items: center; gap: 8px; min-width: 0; grid-area: auto; }
 .sess-row .title .ref { color: var(--fg-4); font-size: 11px; font-variant-numeric: tabular-nums; flex-shrink: 0; }
 .sess-row .title .t { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .sess-row .tag { display: inline-flex; gap: 4px; align-items: center; font-size: 10px; }
