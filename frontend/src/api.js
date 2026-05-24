@@ -17,6 +17,10 @@ export async function getSession(id) {
   return res.json();
 }
 
+export async function deleteSession(id) {
+  await fetch(`/api/sessions/${id}/delete/`, { method: 'DELETE' });
+}
+
 export async function updateSession(id, patch) {
   await fetch(`/api/sessions/${id}/`, {
     method: 'PATCH',

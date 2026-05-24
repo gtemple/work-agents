@@ -3,7 +3,7 @@ import {
   createSession, listSessions, getSession, streamAgent, updateSession,
   approveAction, getEvents, getSessionEvents, getRecentEvents,
   listActionItems, actionItemAct,
-  listProcesses,
+  listProcesses, deleteSession,
 } from './api';
 import LeftRail from './components/LeftRail';
 import TriageQueue from './components/TriageQueue';
@@ -382,6 +382,12 @@ export default function App() {
     esRefs.current[sessionId] = es;
   }, []);
 
+  const handleDelete = useCallback(async (id) => {
+    await deleteSession(id);
+    setSessions(prev => prev.filter(s => s.id !== id));
+    if (openChat === id) setOpenChat(null);
+  }, [openChat]);
+
   const approve = useCallback((sessionId, approved) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, pendingApproval: null } : s));
     approveAction(sessionId, approved);
@@ -544,7 +550,7 @@ export default function App() {
             <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{sessionsOpen ? '▾' : '▸'}</span>
             <span className="hint">click any row → open chat thread</span>
           </div>
-          {sessionsOpen && <SessionsList items={visibleSessions} onOpen={openSession} now={now} />}
+          {sessionsOpen && <SessionsList items={visibleSessions} onOpen={openSession} onDelete={handleDelete} now={now} />}
         </div>
       </main>
 
@@ -572,6 +578,7 @@ export default function App() {
           onSend={prompt => send(openChat, prompt)}
           onApprove={() => approve(openChat, true)}
           onReject={() => approve(openChat, false)}
+          onDelete={handleDelete}
         />
       )}
 

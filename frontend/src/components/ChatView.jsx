@@ -104,8 +104,9 @@ function ChatRow({ m, onApprove, onReject }) {
   return null;
 }
 
-export default function ChatView({ session, onClose, onSend, onApprove, onReject }) {
+export default function ChatView({ session, onClose, onSend, onApprove, onReject, onDelete }) {
   const [draft, setDraft] = useState('');
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
 
@@ -158,6 +159,14 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
           <span className="needs"><span className="d" /> needs your input</span>
         )}
         <span className="right">
+          {onDelete && session.status !== 'running' && (
+            confirmDelete
+              ? <>
+                  <button className="btn" style={{ color: 'var(--err)', fontSize: 11 }} onClick={() => { onDelete(session.id); onClose(); }}>confirm delete</button>
+                  <button className="btn x" onClick={() => setConfirmDelete(false)}>cancel</button>
+                </>
+              : <button className="btn x" title="delete session" style={{ color: 'var(--fg-4)' }} onClick={() => setConfirmDelete(true)}>⊠</button>
+          )}
           <button className="btn x" title="close (esc)" onClick={onClose}>✕</button>
         </span>
       </header>

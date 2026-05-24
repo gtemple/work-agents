@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { estimateCost, timeAgo } from '../utils';
 
 const PLANNING_TOOLS = ['read_file', 'list_files', 'clone_repo', 'git_status', 'git_diff', 'get_pr', 'get_pr_diff', 'web_search', 'fetch_page', 'memory_read', 'memory_list', 'read_user_context', 'read_repo_memory'];
@@ -38,7 +39,52 @@ export function getSessionStatus(s) {
   return 'queued';
 }
 
-export default function SessionsList({ items, onOpen, now }) {
+function SessionRow({ s, onOpen, onDelete, now }) {
+  const [confirm, setConfirm] = useState(false);
+  const status = getSessionStatus(s);
+  const tokens = (s.inputTokens || 0) + (s.outputTokens || 0);
+  const cost = estimateCost(s.inputTokens || 0, s.outputTokens || 0, s.model);
+  const phase = status === 'running' ? getPhase(s.liveSteps) : null;
+  const when = s.created_at ? timeAgo(new Date(s.created_at).getTime(), now) : '—';
+  const canDelete = status !== 'running' && status !== 'needs_input';
+
+  return (
+    <div className="sess-row"
+      data-needs={status === 'needs_input' ? '1' : '0'}
+      onClick={() => !confirm && onOpen(s.id)}>
+      <span className={`st ${status}`} />
+      <span className="title">
+        {s.linear_issue_key && <span className="ref">{s.linear_issue_key}</span>}
+        <span className="t">{s.title || 'Untitled'}</span>
+        {status === 'needs_input' && <span className="needs-pill">! needs input</span>}
+      </span>
+      <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+        <span className={`tag ${s.is_work ? 'work' : 'personal'}`}>
+          <span className="d" />{s.is_work ? 'work' : 'personal'}
+        </span>
+        {s.linear_task_type && (
+          <span className={`kind${s.linear_task_type === 'bug' ? ' bug' : ''}`}>{s.linear_task_type}</span>
+        )}
+        {phase && <PhaseStrip phase={phase} />}
+      </span>
+      <span className="num">{tokens ? `${(tokens / 1000).toFixed(1)}k` : '—'}</span>
+      <span className="num">{cost > 0.0001 ? `$${cost.toFixed(4)}` : '—'}</span>
+      <span className="when">{when}</span>
+      <span className="sess-del" onClick={e => e.stopPropagation()}>
+        {canDelete && (
+          confirm
+            ? <>
+                <button className="del-confirm" onClick={() => onDelete(s.id)}>delete</button>
+                <button className="del-cancel" onClick={() => setConfirm(false)}>cancel</button>
+              </>
+            : <button className="del-btn" onClick={() => setConfirm(true)} title="delete">⊠</button>
+        )}
+      </span>
+    </div>
+  );
+}
+
+export default function SessionsList({ items, onOpen, onDelete, now }) {
   return (
     <div className="sessions">
       <div className="sess-head">
@@ -48,39 +94,11 @@ export default function SessionsList({ items, onOpen, now }) {
         <span style={{ textAlign: 'right' }}>tokens</span>
         <span style={{ textAlign: 'right' }}>cost</span>
         <span style={{ textAlign: 'right' }}>when</span>
+        <span></span>
       </div>
-      {items.map(s => {
-        const status = getSessionStatus(s);
-        const tokens = (s.inputTokens || 0) + (s.outputTokens || 0);
-        const cost = estimateCost(s.inputTokens || 0, s.outputTokens || 0);
-        const phase = status === 'running' ? getPhase(s.liveSteps) : null;
-        const when = s.created_at ? timeAgo(new Date(s.created_at).getTime(), now) : '—';
-
-        return (
-          <div key={s.id} className="sess-row"
-            data-needs={status === 'needs_input' ? '1' : '0'}
-            onClick={() => onOpen(s.id)}>
-            <span className={`st ${status}`} />
-            <span className="title">
-              {s.linear_issue_key && <span className="ref">{s.linear_issue_key}</span>}
-              <span className="t">{s.title || 'Untitled'}</span>
-              {status === 'needs_input' && <span className="needs-pill">! needs input</span>}
-            </span>
-            <span style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-              <span className={`tag ${s.is_work ? 'work' : 'personal'}`}>
-                <span className="d" />{s.is_work ? 'work' : 'personal'}
-              </span>
-              {s.linear_task_type && (
-                <span className={`kind${s.linear_task_type === 'bug' ? ' bug' : ''}`}>{s.linear_task_type}</span>
-              )}
-              {phase && <PhaseStrip phase={phase} />}
-            </span>
-            <span className="num">{tokens ? `${(tokens / 1000).toFixed(1)}k` : '—'}</span>
-            <span className="num">{cost > 0.0001 ? `$${cost.toFixed(4)}` : '—'}</span>
-            <span className="when">{when}</span>
-          </div>
-        );
-      })}
+      {items.map(s => (
+        <SessionRow key={s.id} s={s} onOpen={onOpen} onDelete={onDelete} now={now} />
+      ))}
     </div>
   );
 }

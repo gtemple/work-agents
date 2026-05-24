@@ -46,6 +46,17 @@ def create_session(request):
 
 
 @csrf_exempt
+@require_http_methods(['DELETE'])
+def delete_session(request, session_id):
+    try:
+        session = Session.objects.get(id=session_id)
+    except Session.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    session.delete()
+    return JsonResponse({'ok': True})
+
+
+@csrf_exempt
 @require_http_methods(['GET', 'PATCH'])
 def get_session(request, session_id):
     try:
