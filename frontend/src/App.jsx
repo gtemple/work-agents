@@ -43,10 +43,11 @@ function makeSessionState(s, idx) {
   };
 }
 
-function TitleBar({ running, queued, totalCost }) {
+function TitleBar({ running, queued, totalCost, onHamburger }) {
   const clock = useClock();
   return (
     <div className="title">
+      <button className="hamb" onClick={onHamburger} aria-label="menu">≡</button>
       <span className="dots"><i /><i /><i /></span>
       <span className="crumb">
         <b>~/agent-manager</b>
@@ -132,6 +133,7 @@ export default function App() {
   const [helpOpen, setHelpOpen]       = useState(false);
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
+  const [drawerOpen, setDrawerOpen]       = useState(false);
 
   const sessionsRef    = useRef(sessions);
   const lastEventIdRef = useRef(0);
@@ -429,19 +431,21 @@ export default function App() {
   const globalOut = sessions.reduce((sum, s) => sum + (s.outputTokens || 0), 0);
 
   return (
-    <div className="app">
-      <TitleBar running={counts.running} queued={totals.queued} totalCost={totals.cost} />
+    <div className="app" data-mobile-drawer={drawerOpen ? '1' : '0'}>
+      <TitleBar running={counts.running} queued={totals.queued} totalCost={totals.cost}
+        onHamburger={() => setDrawerOpen(d => !d)} />
+      {drawerOpen && <div className="mobile-backdrop" onClick={() => setDrawerOpen(false)} />}
 
       <LeftRail
         sessions={sessions}
         selected={selectedAgent}
-        onSelect={openSession}
+        onSelect={id => { openSession(id); setDrawerOpen(false); }}
         scope={scope}
         setScope={setScope}
         onNew={newAgent}
-        onMemory={() => setOpenWorkspace('memory')}
-        onSchedules={() => setOpenWorkspace('schedules')}
-        onStats={() => setOpenWorkspace('stats')}
+        onMemory={() => { setOpenWorkspace('memory'); setDrawerOpen(false); }}
+        onSchedules={() => { setOpenWorkspace('schedules'); setDrawerOpen(false); }}
+        onStats={() => { setOpenWorkspace('stats'); setDrawerOpen(false); }}
         globalInputTokens={globalIn}
         globalOutputTokens={globalOut}
       />
