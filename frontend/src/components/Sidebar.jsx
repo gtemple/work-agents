@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { formatTokens, estimateCost, formatCost } from '../utils';
 import { syncLinear } from '../api';
+import { CaretDown, ArrowsClockwise } from './Icons';
 
 const STATUS_DOT = {
   idle:    { color: '#475569', pulse: false },
@@ -87,10 +88,7 @@ function SectionHeader({ label, count, collapsed, onToggle, right }) {
         background: 'none', border: 'none', padding: 0, cursor: 'pointer',
         display: 'flex', alignItems: 'center', gap: 4, flex: 1,
       }}>
-        <span style={{
-          fontSize: 9, color: '#334155', transform: collapsed ? 'rotate(-90deg)' : 'none',
-          transition: 'transform 0.15s', display: 'inline-block', lineHeight: 1,
-        }}>▾</span>
+        <CaretDown size={11} color="#334155" style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
         <span style={{ fontSize: 10, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>
           {label}
         </span>
@@ -211,7 +209,7 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
                   background: 'none', border: 'none', color: '#334155', cursor: 'pointer',
                   fontSize: 10, padding: 0, opacity: syncing ? 0.5 : 1,
                 }}>
-                  {syncing ? '…' : '↻'}
+                  {syncing ? '…' : <ArrowsClockwise size={11} />}
                 </button>
               }
             />
@@ -231,7 +229,7 @@ export default function Sidebar({ sessions, activeId, onSelect, onNew, onDashboa
               background: 'none', border: 'none', color: '#475569', cursor: 'pointer',
               fontSize: 10, padding: 0, opacity: syncing ? 0.5 : 1,
             }}>
-              {syncing ? '…' : '↻ sync Linear'}
+              {syncing ? '…' : <><ArrowsClockwise size={11} style={{ marginRight: 3 }} />sync Linear</>}
             </button>
           </div>
         )}

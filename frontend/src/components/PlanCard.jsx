@@ -1,3 +1,5 @@
+import { ClipboardText, Warning } from './Icons';
+
 export default function PlanCard({ plan, onApprove, onReject }) {
   return (
     <div style={{
@@ -9,7 +11,7 @@ export default function PlanCard({ plan, onApprove, onReject }) {
       width: '80%',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-        <span style={{ fontSize: 15 }}>📋</span>
+        <ClipboardText size={16} color="#60a5fa" weight="duotone" />
         <span style={{ fontSize: 13, fontWeight: 600, color: '#60a5fa' }}>
           Implementation plan — approval required
         </span>
@@ -50,8 +52,8 @@ export default function PlanCard({ plan, onApprove, onReject }) {
       )}
 
       {plan.risks && (
-        <div style={{ marginBottom: 14, padding: '8px 10px', background: '#1a1400', borderRadius: 6, border: '1px solid #f59e0b33' }}>
-          <span style={{ fontSize: 11, color: '#f59e0b' }}>⚠ </span>
+        <div style={{ marginBottom: 14, padding: '8px 10px', background: '#1a1400', borderRadius: 6, border: '1px solid #f59e0b33', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
+          <Warning size={13} color="#f59e0b" weight="fill" style={{ flexShrink: 0, marginTop: 1 }} />
           <span style={{ fontSize: 12, color: '#94a3b8' }}>{plan.risks}</span>
         </div>
       )}

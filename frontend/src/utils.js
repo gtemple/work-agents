@@ -31,20 +31,6 @@ export function timeAgo(ts, now) {
   return `${Math.floor(s / 60)}m ago`;
 }
 
-export const TOOL_ICONS = {
-  run_code:   '⚡',
-  read_file:  '📄',
-  write_file: '✏️',
-  list_files: '📁',
-  bash:       '💻',
-  clone_repo: '📦',
-  git_branch: '🌿',
-  git_status: '📊',
-  git_diff:   '🔍',
-  git_commit: '💾',
-  git_push:   '🚀',
-  create_pr:  '🔀',
-};
 
 export function argsSummary(tool, args = {}) {
   if (args.code)     return `${args.language || ''} · ${args.code.slice(0, 50)}`.trim();

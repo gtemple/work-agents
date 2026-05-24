@@ -1,15 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { listActionItems, actionItemAct } from '../api';
-
-const CATEGORY_ICONS = {
-  repo_health: '🩺',
-  tech_debt:   '🧹',
-  new_idea:    '💡',
-  learning:    '📚',
-  maintenance: '🔧',
-  workflow:    '⚡',
-  pattern:     '🔍',
-};
+import { CATEGORY_ICONS, Wrench, ArrowsClockwise, CaretDown } from './Icons';
 
 const TYPE_COLOR = {
   work:     '#3b82f6',
@@ -17,7 +8,7 @@ const TYPE_COLOR = {
 };
 
 function ItemCard({ item, onAct, navigating }) {
-  const icon = CATEGORY_ICONS[item.category] || '✦';
+  const IconComponent = CATEGORY_ICONS[item.category] || Wrench;
   const color = TYPE_COLOR[item.type] || '#475569';
 
   return (
@@ -34,7 +25,7 @@ function ItemCard({ item, onAct, navigating }) {
       onMouseLeave={e => e.currentTarget.style.borderColor = `${color}22`}
     >
       <div style={{ display: 'flex', alignItems: 'flex-start', gap: 8, minWidth: 0, flex: 1 }}>
-        <span style={{ fontSize: 14, flexShrink: 0, marginTop: 1 }}>{icon}</span>
+        <IconComponent size={15} color={color} weight="duotone" style={{ flexShrink: 0, marginTop: 1 }} />
         <div style={{ minWidth: 0, flex: 1 }}>
           <div style={{ fontSize: 13, color: '#f1f5f9', fontWeight: 500, lineHeight: 1.3, marginBottom: 4 }}>
             {item.title}
@@ -81,7 +72,7 @@ function ItemCard({ item, onAct, navigating }) {
 }
 
 function SavedItem({ item, onAct, navigating }) {
-  const icon = CATEGORY_ICONS[item.category] || '✦';
+  const IconComponent = CATEGORY_ICONS[item.category] || Wrench;
   const color = TYPE_COLOR[item.type] || '#475569';
   return (
     <div style={{
@@ -89,7 +80,7 @@ function SavedItem({ item, onAct, navigating }) {
       padding: '8px 12px', borderRadius: 8,
       background: '#0d1829', border: '1px solid #1e293b',
     }}>
-      <span style={{ fontSize: 12 }}>{icon}</span>
+      <IconComponent size={13} color={color} weight="duotone" />
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{ fontSize: 12, color: '#94a3b8', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
           {item.title}
@@ -172,7 +163,7 @@ export default function ActionItems({ onNavigate }) {
           background: 'none', border: 'none', padding: 0, cursor: 'pointer',
           display: 'flex', alignItems: 'center', gap: 6,
         }}>
-          <span style={{ fontSize: 10, color: '#334155', transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s', display: 'inline-block' }}>▾</span>
+          <CaretDown size={11} color="#334155" style={{ transform: collapsed ? 'rotate(-90deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
           <span style={{ fontSize: 11, color: '#475569', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
             Ideas
           </span>
@@ -198,7 +189,7 @@ export default function ActionItems({ onNavigate }) {
               color: '#334155', padding: '3px 8px', cursor: 'pointer', fontSize: 10,
               opacity: refreshing ? 0.5 : 1,
             }}>
-              {refreshing ? 'Generating…' : '↻ Refresh'}
+              {refreshing ? 'Generating…' : <><ArrowsClockwise size={10} style={{ marginRight: 4 }} />Refresh</>}
             </button>
           </div>
         )}

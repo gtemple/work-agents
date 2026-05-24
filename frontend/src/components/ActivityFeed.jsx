@@ -1,4 +1,5 @@
-import { TOOL_ICONS, argsSummary, timeAgo } from '../utils';
+import { argsSummary, timeAgo } from '../utils';
+import { ToolIcon } from './Icons';
 
 export default function ActivityFeed({ events, now }) {
   return (
@@ -38,8 +39,8 @@ export default function ActivityFeed({ events, now }) {
                 {timeAgo(ev.ts, now)}
               </span>
             </div>
-            <div style={{ fontSize: 12, color: '#94a3b8', paddingLeft: 12 }}>
-              <span style={{ marginRight: 5 }}>{TOOL_ICONS[ev.tool] || '🔧'}</span>
+            <div style={{ fontSize: 12, color: '#94a3b8', paddingLeft: 12, display: 'flex', alignItems: 'center', gap: 5 }}>
+              <ToolIcon tool={ev.tool} size={12} color="#475569" />
               <span style={{ color: '#cbd5e1', fontWeight: 500 }}>{ev.tool}</span>
             </div>
             {argsSummary(ev.tool, ev.args) && (

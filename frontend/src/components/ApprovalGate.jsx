@@ -1,9 +1,10 @@
-import { TOOL_ICONS, argsSummary } from '../utils';
+import { argsSummary } from '../utils';
+import { ToolIcon, Warning } from './Icons';
 
 const TOOL_DESCRIPTIONS = {
-  git_push: 'Push branch to GitHub remote',
-  create_pr: 'Open a pull request on GitHub',
-  post_pr_review: 'Post a review on a GitHub PR',
+  git_push:      'Push branch to GitHub remote',
+  create_pr:     'Open a pull request on GitHub',
+  post_pr_review:'Post a review on a GitHub PR',
 };
 
 export default function ApprovalGate({ approval, onApprove, onReject }) {
@@ -19,15 +20,17 @@ export default function ApprovalGate({ approval, onApprove, onReject }) {
       animation: 'gateIn 0.2s ease-out',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
-        <span style={{ fontSize: 16 }}>⚠️</span>
+        <Warning size={16} color="#f59e0b" weight="fill" />
         <span style={{ fontSize: 13, fontWeight: 600, color: '#fbbf24' }}>
           Approval required
         </span>
       </div>
 
       <div style={{ fontSize: 13, color: '#94a3b8', marginBottom: 12 }}>
-        <span style={{ marginRight: 6 }}>{TOOL_ICONS[tool] || '🔧'}</span>
-        <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{tool}</span>
+        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5, marginRight: 4 }}>
+          <ToolIcon tool={tool} size={13} color="#94a3b8" />
+          <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{tool}</span>
+        </span>
         {' — '}
         <span>{TOOL_DESCRIPTIONS[tool] || tool}</span>
         {summary && (

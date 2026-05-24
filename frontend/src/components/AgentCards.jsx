@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { formatElapsed, TOOL_ICONS, estimateCost, formatCost, formatTokens } from '../utils';
+import { formatElapsed, estimateCost, formatCost, formatTokens } from '../utils';
 import ActionItems from './ActionItems';
+import { Robot } from './Icons';
 
 const STATUS_CONFIG = {
   running: { label: 'Running', color: '#22d3ee', pulse: true },
@@ -121,7 +122,7 @@ function Row({ session, onSelect, now }) {
       <td style={{ padding: '11px 16px', width: 180 }}>
         {lastTool ? (
           <span style={{ fontSize: 11, color: session.color }}>
-            {TOOL_ICONS[lastTool] || '🔧'} {lastTool}…
+{lastTool}…
           </span>
         ) : session.stepCount > 0 ? (
           <span style={{ fontSize: 11, color: '#475569' }}>
@@ -262,7 +263,7 @@ export default function AgentCards({ sessions, onSelect, onNew, now, onNavigate 
       <div style={{ flex: 1, overflowY: 'auto', marginTop: 0 }}>
         {sorted.length === 0 ? (
           <div style={{ textAlign: 'center', marginTop: 80, color: '#334155' }}>
-            <div style={{ fontSize: 28, marginBottom: 10 }}>🤖</div>
+            <div style={{ marginBottom: 10 }}><Robot size={32} color="#334155" /></div>
             <div style={{ fontSize: 14 }}>
               {search || filter !== 'all' ? 'No sessions match this filter.' : 'No agents yet. Start one above.'}
             </div>
