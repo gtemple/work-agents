@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import ReactMarkdown from 'react-markdown';
 import { argsSummary } from '../utils';
 
 function fmt() {
@@ -59,7 +60,7 @@ function ChatRow({ m, onApprove, onReject }) {
   if (m.kind === 'agent') return (
     <div className="chat-row agent">
       <span className="ts">{m.t}</span><span className="glyph">◆</span>
-      <span className="msg">{m.text}</span>
+      <span className="msg markdown"><ReactMarkdown>{m.text}</ReactMarkdown></span>
     </div>
   );
   if (m.kind === 'tool') {
