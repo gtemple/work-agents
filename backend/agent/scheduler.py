@@ -17,7 +17,10 @@ def _loop():
             from . import agent_loop
             from . import suggestions as sug
 
-            # Daily action-item refresh
+            # Always promote queued items into open slots
+            sug.promote_queued_to_active()
+
+            # Daily action-item refresh (fill queue + re-promote)
             ctx = UserContext.get()
             if (
                 ctx.suggestions_generated_at is None
