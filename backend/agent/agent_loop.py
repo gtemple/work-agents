@@ -162,6 +162,9 @@ def run(session, prompt: str, skip_gated: bool = False):
     agent_steps = []
     total_input_tokens = 0
     total_output_tokens = 0
+    # Snapshot the session's existing token totals so mid-run saves don't double-count
+    base_input_tokens  = session.input_tokens
+    base_output_tokens = session.output_tokens
 
     while True:
         response = client.models.generate_content(
@@ -181,6 +184,14 @@ def run(session, prompt: str, skip_gated: bool = False):
                 'input': total_input_tokens,
                 'output': total_output_tokens,
             }}
+            # Persist after every API call so background runs show live token counts
+            # and planning tokens aren't lost if the run stalls waiting for approval.
+            # Write absolute value (base + cumulative) to avoid double-counting.
+            from .models import Session as _Session
+            _Session.objects.filter(pk=session.pk).update(
+                input_tokens=base_input_tokens + total_input_tokens,
+                output_tokens=base_output_tokens + total_output_tokens,
+            )
 
         candidate = response.candidates[0]
         content = candidate.content
@@ -208,14 +219,12 @@ def run(session, prompt: str, skip_gated: bool = False):
                     order=i,
                 )
             if total_input_tokens or total_output_tokens:
+                # Session totals already written after each API call — just log the usage record
                 TokenUsage.objects.create(
                     session=session,
                     input_tokens=total_input_tokens,
                     output_tokens=total_output_tokens,
                 )
-                session.input_tokens = session.input_tokens + total_input_tokens
-                session.output_tokens = session.output_tokens + total_output_tokens
-                session.save(update_fields=['input_tokens', 'output_tokens'])
 
             _post_linear_comment(session, f'✅ Agent completed turn.\n\n{text[:1000]}')
             _save_global_event(session, 'done', {

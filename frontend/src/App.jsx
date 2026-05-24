@@ -147,7 +147,12 @@ export default function App() {
           if (ev.event_type === 'done') {
             setSessions(prev => prev.map(s =>
               s.id === ev.session_id
-                ? { ...s, status: 'done', liveSteps: [], liveText: '', eventsLoadedUpTo: 0 }
+                ? {
+                    ...s,
+                    status: 'done', liveSteps: [], liveText: '', eventsLoadedUpTo: 0,
+                    inputTokens:  ev.data.input_tokens  ?? s.inputTokens,
+                    outputTokens: ev.data.output_tokens ?? s.outputTokens,
+                  }
                 : s
             ));
             getSession(ev.session_id).then(data => {
@@ -191,7 +196,14 @@ export default function App() {
       setSessions(prev => list.map((s, i) => {
         const existing = prev.find(p => p.id === s.id);
         return existing
-          ? { ...existing, title: s.title, is_work: s.is_work, linear_issue_key: s.linear_issue_key, linear_issue_url: s.linear_issue_url, linear_task_type: s.linear_task_type }
+          ? {
+              ...existing,
+              title: s.title, is_work: s.is_work,
+              linear_issue_key: s.linear_issue_key, linear_issue_url: s.linear_issue_url,
+              linear_task_type: s.linear_task_type,
+              inputTokens:  s.input_tokens ?? existing.inputTokens,
+              outputTokens: s.output_tokens ?? existing.outputTokens,
+            }
           : { ...makeSessionState(s, i), inputTokens: s.input_tokens ?? 0, outputTokens: s.output_tokens ?? 0 };
       }));
     });
