@@ -1,7 +1,7 @@
 // Gemini pricing per 1M tokens — see ai.google.dev/pricing
 const PRICING = {
-  'gemini-2.5-flash': { input: 0.075, output: 0.30 },
-  'gemini-3.5-flash': { input: 0.10,  output: 0.40 },  // update if Google publishes exact rates
+  'gemini-2.5-flash': { input: 0.075, output: 0.30 },  // verify at ai.google.dev/pricing
+  'gemini-3.5-flash': { input: 1.50,  output: 9.00 },  // output price includes thinking tokens
 };
 const DEFAULT_PRICING = { input: 0.075, output: 0.30 };
 

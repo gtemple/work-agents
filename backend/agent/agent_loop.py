@@ -208,8 +208,10 @@ def run(session, prompt: str, skip_gated: bool = False):
             u = response.usage_metadata
             total_input_tokens  += getattr(u, 'prompt_token_count', 0) or 0
             total_output_tokens += getattr(u, 'candidates_token_count', 0) or 0
-            # thinking tokens are billed at a higher rate — track separately via output
-            total_output_tokens += getattr(u, 'thoughts_token_count', 0) or 0
+            # 3.5 Flash: thinking already included in candidates_token_count price
+            # 2.5 Flash: thoughts billed separately — add them to output for cost tracking
+            if model != 'gemini-3.5-flash':
+                total_output_tokens += getattr(u, 'thoughts_token_count', 0) or 0
             yield {'type': 'tokens', 'payload': {
                 'input': total_input_tokens,
                 'output': total_output_tokens,
