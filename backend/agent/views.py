@@ -579,6 +579,7 @@ def _process_dict(p):
         'session_id': str(p.session_id) if p.session_id else None,
         'label': p.label,
         'command': p.command,
+        'cwd': p.cwd,
         'port': p.port,
         'pid': p.pid,
         'status': p.status,
@@ -621,6 +622,37 @@ def stop_process_view(request, process_id):
     p.stopped_at = timezone.now()
     p.save()
     return JsonResponse({'ok': True})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def restart_process_view(request, process_id):
+    import subprocess, os
+    from .models import Process
+    try:
+        p = Process.objects.get(id=process_id)
+    except Process.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    # Kill old pid if still running
+    if p.pid:
+        try:
+            os.killpg(os.getpgid(p.pid), __import__('signal').SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+    work_dir = p.cwd or '.'
+    try:
+        proc = subprocess.Popen(
+            p.command, shell=True, cwd=work_dir,
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+    p.pid = proc.pid
+    p.status = 'running'
+    p.stopped_at = None
+    p.save()
+    return JsonResponse(_process_dict(p))
 
 
 def _schedule_dict(s):

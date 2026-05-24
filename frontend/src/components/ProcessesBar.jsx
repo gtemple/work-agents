@@ -1,4 +1,4 @@
-import { stopProcess } from '../api';
+import { stopProcess, restartProcess } from '../api';
 
 const STATUS_COLOR = { running: 'var(--ok)', stopped: 'var(--fg-4)', crashed: 'var(--err)' };
 
@@ -7,6 +7,11 @@ export default function ProcessesBar({ processes, onRefresh }) {
 
   const handleStop = async (id) => {
     await stopProcess(id);
+    onRefresh();
+  };
+
+  const handleRestart = async (id) => {
+    await restartProcess(id);
     onRefresh();
   };
 
@@ -25,11 +30,10 @@ export default function ProcessesBar({ processes, onRefresh }) {
                   :{p.port} →
                 </a>
               )}
-              {p.status === 'running' && (
+              {p.status === 'running' ? (
                 <button className="proc-stop" onClick={() => handleStop(p.id)} title="stop">⊠</button>
-              )}
-              {p.status !== 'running' && (
-                <span className="proc-status">{p.status}</span>
+              ) : (
+                <button className="proc-restart" onClick={() => handleRestart(p.id)} title="restart">↺</button>
               )}
             </div>
           );

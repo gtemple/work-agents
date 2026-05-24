@@ -25,4 +25,5 @@ urlpatterns = [
     path('context/repos/<path:repo>/', views.repo_memory_detail),
     path('processes/', views.list_processes),
     path('processes/<int:process_id>/stop/', views.stop_process_view),
+    path('processes/<int:process_id>/restart/', views.restart_process_view),
 ]

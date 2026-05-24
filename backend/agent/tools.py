@@ -716,7 +716,7 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         except Exception as e:
             return f'Failed to start process: {e}'
         db_proc = ProcessModel.objects.create(
-            session=session, label=label, command=command, port=port, pid=proc.pid, status='running',
+            session=session, label=label, command=command, cwd=str(work_dir), port=port, pid=proc.pid, status='running',
         )
         if session:
             try:

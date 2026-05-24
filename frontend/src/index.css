@@ -508,12 +508,12 @@ body::before {
   color: var(--ok); text-decoration: none; font-size: 10.5px;
 }
 .proc-url:hover { text-decoration: underline; }
-.proc-stop {
+.proc-stop, .proc-restart {
   background: none; border: none; cursor: pointer;
-  color: var(--fg-4); font-size: 11px; padding: 0; line-height: 1;
+  color: var(--fg-4); font-size: 12px; padding: 0; line-height: 1;
 }
 .proc-stop:hover { color: var(--err); }
-.proc-status { color: var(--fg-4); font-size: 10px; }
+.proc-restart:hover { color: var(--ok); }
 
 /* ── workspace overlay (memory / schedules / stats) ────────────────────── */
 .ws {

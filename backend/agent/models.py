@@ -189,6 +189,7 @@ class Process(models.Model):
     session = models.ForeignKey('Session', null=True, blank=True, on_delete=models.SET_NULL, related_name='processes')
     label = models.CharField(max_length=255)
     command = models.TextField()
+    cwd = models.TextField(blank=True)
     port = models.IntegerField(null=True, blank=True)
     pid = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='running')
