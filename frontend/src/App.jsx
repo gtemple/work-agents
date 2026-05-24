@@ -132,6 +132,7 @@ export default function App() {
   const [logHeight, setLogHeight]     = useState(220);
   const [helpOpen, setHelpOpen]       = useState(false);
   const [triageOpen, setTriageOpen]       = useState(true);
+  const [sessionsOpen, setSessionsOpen]   = useState(true);
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
@@ -500,12 +501,13 @@ export default function App() {
               {triageOpen && <TriageQueue items={visibleTriage} focus={triageFocus} setFocus={setFocus} actions={triageActions} onAction={handleTriageAction} />}
             </>
           )}
-          <div className="sect">
+          <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setSessionsOpen(o => !o)}>
             <b>sessions</b>
             <span>{visibleSessions.length}</span>
+            <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{sessionsOpen ? '▾' : '▸'}</span>
             <span className="hint">click any row → open chat thread</span>
           </div>
-          <SessionsList items={visibleSessions} onOpen={openSession} now={now} />
+          {sessionsOpen && <SessionsList items={visibleSessions} onOpen={openSession} now={now} />}
         </div>
       </main>
 
