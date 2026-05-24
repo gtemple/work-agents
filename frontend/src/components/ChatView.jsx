@@ -1,0 +1,195 @@
+import { useState, useEffect, useRef } from 'react';
+import { argsSummary } from '../utils';
+
+function fmt() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function buildRows(session) {
+  const rows = [];
+  for (const msg of (session.messages || [])) {
+    if (msg.role === 'user') {
+      rows.push({ kind: 'user', t: '—', text: msg.content });
+    } else {
+      for (const step of (msg.steps || [])) {
+        if (step.step_type === 'tool_call') {
+          rows.push({ kind: 'tool', t: '—', tool: step.data.tool, args: argsSummary(step.data.tool, step.data.args || {}) });
+        }
+      }
+      if (msg.content) rows.push({ kind: 'agent', t: '—', text: msg.content });
+    }
+  }
+  for (const step of (session.liveSteps || [])) {
+    if (step.step_type === 'tool_call') {
+      rows.push({ kind: 'tool', t: fmt(), tool: step.data.tool, args: argsSummary(step.data.tool, step.data.args || {}) });
+    }
+  }
+  if (session.pendingApproval) {
+    const pa = session.pendingApproval;
+    if (pa.event_type === 'plan') {
+      const bullets = [];
+      if (pa.files_to_change?.length) bullets.push(`Files: ${pa.files_to_change.join(', ')}`);
+      if (pa.steps?.length) pa.steps.forEach(s => bullets.push(s));
+      rows.push({ kind: 'question', t: fmt(), isApproval: true,
+        text: pa.summary || 'Implementation plan ready for review.',
+        bullets: bullets.length ? bullets : undefined,
+        ask: 'Approve and proceed, or revise?',
+        options: ['Approve', 'Revise plan'] });
+    } else {
+      rows.push({ kind: 'question', t: fmt(), isApproval: true,
+        text: `Approval required: ${pa.tool}`,
+        bullets: [argsSummary(pa.tool, pa.args || {}) || pa.tool].filter(Boolean),
+        options: ['Approve', 'Reject'] });
+    }
+  }
+  if (session.liveText) {
+    rows.push({ kind: 'live', t: fmt(), text: session.liveText });
+  }
+  return rows;
+}
+
+function ChatRow({ m, onApprove, onReject }) {
+  if (m.kind === 'user') return (
+    <div className="chat-row user">
+      <span className="ts">{m.t}</span><span className="glyph">▸</span>
+      <span className="msg">{m.text}</span>
+    </div>
+  );
+  if (m.kind === 'agent') return (
+    <div className="chat-row agent">
+      <span className="ts">{m.t}</span><span className="glyph">◆</span>
+      <span className="msg">{m.text}</span>
+    </div>
+  );
+  if (m.kind === 'tool') {
+    const isWarn = /fail|error/i.test(m.result || '');
+    return (
+      <div className={`chat-row tool${isWarn ? ' warn' : ''}`}>
+        <span className="ts">{m.t}</span><span className="glyph">⚒</span>
+        <span className="msg">
+          <span className="tool-name">{m.tool}</span>
+          {m.args && <span className="tool-args">{m.args}</span>}
+          {m.result && <><span className="tool-arrow">→</span><span className="tool-result">{m.result}</span></>}
+        </span>
+      </div>
+    );
+  }
+  if (m.kind === 'question') return (
+    <div className="chat-row question">
+      <span className="ts">{m.t}</span><span className="glyph">?</span>
+      <span className="msg">
+        <div className="q-text">{m.text}</div>
+        {m.bullets && <ul className="q-bullets">{m.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
+        {m.ask && <div className="q-ask">{m.ask}</div>}
+        {m.options && (
+          <div className="q-opts">
+            {m.options.map((o, i) => (
+              <button key={i} className={i === 0 ? 'primary' : ''}
+                onClick={() => i === 0 ? onApprove?.() : onReject?.()}>{o}</button>
+            ))}
+          </div>
+        )}
+        <div className="q-wait">waiting · tokens paused</div>
+      </span>
+    </div>
+  );
+  if (m.kind === 'live') return (
+    <div className="chat-row live">
+      <span className="ts">{m.t}</span><span className="glyph">›</span>
+      <span className="msg">{m.text}<span className="live-cursor" /></span>
+    </div>
+  );
+  return null;
+}
+
+export default function ChatView({ session, onClose, onSend, onApprove, onReject }) {
+  const [draft, setDraft] = useState('');
+  const bodyRef = useRef(null);
+  const inputRef = useRef(null);
+
+  useEffect(() => {
+    if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+  }, [session?.messages?.length, session?.liveSteps?.length, session?.liveText]);
+
+  useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    const onKey = e => {
+      if (e.key === 'Escape') { e.preventDefault(); onClose(); }
+      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') { e.preventDefault(); send(); }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+
+  if (!session) return null;
+
+  const send = () => {
+    const text = draft.trim();
+    if (!text) return;
+    onSend(text);
+    setDraft('');
+  };
+
+  const rows = buildRows(session);
+  const needsInput = !!session.pendingApproval;
+  const isRunning = session.status === 'running' && !session.pendingApproval && !session.liveText;
+  const tokens = (session.inputTokens || 0) + (session.outputTokens || 0);
+
+  return (
+    <div className="chat" role="dialog">
+      <header className="chat-head">
+        {session.linear_issue_key && <span className="id">{session.linear_issue_key}</span>}
+        <span className="ti">{session.title || 'New agent'}</span>
+        <span className="meta">
+          {tokens > 0 && <span>{(tokens / 1000).toFixed(1)}k tok</span>}
+        </span>
+        {needsInput && (
+          <span className="needs"><span className="d" /> needs your input</span>
+        )}
+        <span className="right">
+          <button className="btn x" title="close (esc)" onClick={onClose}>✕</button>
+        </span>
+      </header>
+
+      <div className="chat-body" ref={bodyRef}>
+        {rows.length === 0 && (
+          <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--fg-3)', fontSize: 12 }}>
+            <div style={{ color: 'var(--fg-4)', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 10 }}>no messages yet</div>
+            <div style={{ color: 'var(--fg-2)', maxWidth: 420, margin: '0 auto' }}>{session.title || 'type a prompt below to start this agent.'}</div>
+          </div>
+        )}
+        {rows.map((m, i) => (
+          <ChatRow key={i} m={m} onApprove={m.isApproval ? onApprove : null} onReject={m.isApproval ? onReject : null} />
+        ))}
+        {isRunning && (
+          <div className="chat-row live">
+            <span className="ts">{fmt()}</span>
+            <span className="glyph">›</span>
+            <span className="msg">working<span className="live-cursor" /></span>
+          </div>
+        )}
+      </div>
+
+      <footer className="chat-foot">
+        <div className="chat-input">
+          <span className="prompt">›</span>
+          <input ref={inputRef} type="text" value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
+            placeholder={needsInput ? 'answer the agent…' : session.status === 'done' ? 'follow up or re-run…' : 'steer, ask a question, or add context…'}
+          />
+          <button className="send" onClick={send}>send <span className="k">⌘↵</span></button>
+        </div>
+        <div className="hint">
+          <span className="seg"><kbd>esc</kbd> close</span>
+          <span className="seg"><kbd>⌘</kbd><kbd>↵</kbd> send</span>
+          <span className="seg" style={{ marginLeft: 'auto', color: 'var(--fg-4)' }}>
+            streamed to <b style={{ color: 'var(--fg-3)' }}>{session.linear_issue_key || session.id?.slice(0, 8)}</b>
+          </span>
+        </div>
+      </footer>
+    </div>
+  );
+}

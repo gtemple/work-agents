@@ -1,102 +1,148 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import { useNavigate, useParams, useLocation, Routes, Route } from 'react-router-dom';
-import { createSession, listSessions, getSession, streamAgent, updateSession, approveAction, getEvents, getSessionEvents, listProjects, createProject } from './api';
-import Sidebar from './components/Sidebar';
-import Chat from './components/Chat';
-import AgentCards from './components/AgentCards';
-import ActivityFeed from './components/ActivityFeed';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import {
+  createSession, listSessions, getSession, streamAgent, updateSession,
+  approveAction, getEvents, getSessionEvents,
+  listActionItems, actionItemAct,
+} from './api';
+import LeftRail from './components/LeftRail';
+import TriageQueue from './components/TriageQueue';
+import SessionsList, { getSessionStatus } from './components/SessionsList';
+import BottomLog from './components/BottomLog';
+import ChatView from './components/ChatView';
 import Toast from './components/Toast';
 import MemoryPanel from './components/MemoryPanel';
 import SchedulePanel from './components/SchedulePanel';
 import StatsPanel from './components/StatsPanel';
-import ProjectView from './components/ProjectView';
+import { estimateCost, argsSummary } from './utils';
+import './index.css';
 
-const PALETTE = ['#818cf8', '#34d399', '#fb923c', '#f472b6', '#38bdf8', '#a78bfa', '#fbbf24', '#f87171'];
+function fmtT() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
 
-function makeSessionState(s, colorIndex) {
+function useClock() {
+  const [t, setT] = useState(fmtT);
+  useEffect(() => { const id = setInterval(() => setT(fmtT()), 1000); return () => clearInterval(id); }, []);
+  return t;
+}
+
+function makeSessionState(s, idx) {
   return {
     ...s,
     messages: [], liveSteps: [], liveText: '',
     status: 'idle', stepCount: 0, startedAt: null, eventsLoadedUpTo: 0,
     system_prompt: s.system_prompt ?? '',
-    color: PALETTE[colorIndex % PALETTE.length],
-    inputTokens: 0,
-    outputTokens: 0,
+    inputTokens: s.input_tokens ?? 0,
+    outputTokens: s.output_tokens ?? 0,
     pendingApproval: null,
     is_work: s.is_work ?? false,
     linear_issue_key: s.linear_issue_key ?? '',
-    linear_issue_url: s.linear_issue_url ?? '',
     linear_task_type: s.linear_task_type ?? '',
     session_role: s.session_role ?? 'standard',
     project_id: s.project_id ?? null,
+    hasPendingPlan: s.has_pending_plan ?? false,
   };
 }
 
-function SessionView({ sessions, setSessions, send, approve, saveSystemPrompt, now }) {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const session = sessions.find(s => s.id === id) ?? null;
-
-  useEffect(() => {
-    if (!session) return;
-
-    if (session.status === 'running' && !session.liveSteps.length && !session.eventsLoadedUpTo) {
-      // Backfill liveSteps from DB for background sessions
-      getSessionEvents(id).then(({ events }) => {
-        if (!events?.length) return;
-        const steps = events
-          .filter(e => e.event_type === 'tool_call')
-          .map(e => ({ step_type: 'tool_call', data: { tool: e.data.tool, args: e.data.args } }));
-        const lastId = events[events.length - 1].id;
-        setSessions(prev => prev.map(s =>
-          s.id === id
-            ? { ...s, liveSteps: steps, stepCount: steps.length, eventsLoadedUpTo: lastId }
-            : s
-        ));
-      });
-    } else if (!session.messages.length && session.status !== 'running') {
-      getSession(id).then(data => {
-        setSessions(prev => prev.map(s => {
-          if (s.id !== id) return s;
-          const update = { ...s, messages: data.messages };
-          if (data.pending_plan && !s.pendingApproval) {
-            update.pendingApproval = { ...data.pending_plan, event_type: 'plan' };
-            update.status = 'running';
-          }
-          return update;
-        }));
-      });
-    }
-  }, [id, session?.status]);
-
-  if (!session) return null;
+function TitleBar({ running, queued, totalCost }) {
+  const clock = useClock();
   return (
-    <Chat
-      session={session}
-      onSend={(prompt) => send(session.id, prompt)}
-      onSaveSystemPrompt={(v) => saveSystemPrompt(session.id, v)}
-      onApprove={() => approve(session.id, true)}
-      onReject={() => approve(session.id, false)}
-      now={now}
-    />
+    <div className="title">
+      <span className="dots"><i /><i /><i /></span>
+      <span className="crumb">
+        <b>~/agent-manager</b>
+        <span className="sep">/</span>
+        <span>dashboard</span>
+      </span>
+      <span className="meta">
+        <span><span className="ok">●</span> {running} running</span>
+        <span>{queued} queued</span>
+        <span>${totalCost.toFixed(4)}</span>
+        <span>{clock}</span>
+      </span>
+    </div>
+  );
+}
+
+function StatusBar({ running, queued, done, errors, needsInput, totalTokens, totalCost, focused, onOpenNeeds }) {
+  return (
+    <footer className="stat">
+      {needsInput > 0 && (
+        <button className="seg" style={{
+          color: 'var(--accent)', cursor: 'pointer', background: 'rgba(230,179,74,.08)',
+          border: '1px solid rgba(230,179,74,.4)', borderRadius: 'var(--r)',
+          padding: '0 8px', height: 16, fontSize: 10.5, font: 'inherit',
+          display: 'inline-flex', alignItems: 'center', gap: 5,
+        }} onClick={onOpenNeeds}>
+          <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', animation: 'needs-pulse 1.2s ease-in-out infinite' }} />
+          <b style={{ color: 'var(--accent)' }}>{needsInput}</b> needs input →
+        </button>
+      )}
+      <span className="seg"><span className="d amber" /> <b>{running}</b> running</span>
+      <span className="seg"><span className="d" style={{ background: 'var(--fg-4)' }} /> <b>{queued}</b> queued</span>
+      <span className="seg"><span className="d" style={{ background: 'var(--ok)' }} /> <b>{done}</b> done</span>
+      <span className="seg"><span className="d err" /> <b>{errors}</b> error</span>
+      <span className="seg" style={{ color: 'var(--fg-4)' }}>│</span>
+      <span className="seg"><b>{(totalTokens / 1000).toFixed(1)}k</b> tokens</span>
+      <span className="seg"><b>${totalCost.toFixed(4)}</b></span>
+      <span className="right">
+        {focused && <span className="seg">focus: <b style={{ color: 'var(--accent)' }}>{String(focused).slice(0, 12)}</b></span>}
+        <span className="seg"><span className="key">i</span> investigate</span>
+        <span className="seg"><span className="key">s</span> save</span>
+        <span className="seg"><span className="key">n</span> dismiss</span>
+        <span className="seg"><span className="key">?</span> help</span>
+      </span>
+    </footer>
+  );
+}
+
+function HelpOverlay({ onClose }) {
+  return (
+    <div className="help" onClick={onClose}>
+      <div className="panel" onClick={e => e.stopPropagation()}>
+        <h3>keyboard</h3>
+        <div className="grid">
+          <kbd>j</kbd><span className="desc">focus next suggestion</span>
+          <kbd>k</kbd><span className="desc">focus previous suggestion</span>
+          <kbd>i</kbd><span className="desc">investigate focused</span>
+          <kbd>s</kbd><span className="desc">save focused for later</span>
+          <kbd>n</kbd><span className="desc">dismiss focused</span>
+          <kbd>/</kbd><span className="desc">focus search</span>
+          <kbd>?</kbd><span className="desc">toggle this help</span>
+          <kbd>esc</kbd><span className="desc">close overlays</span>
+        </div>
+        <div className="foot">esc · close</div>
+      </div>
+    </div>
   );
 }
 
 export default function App() {
-  const [sessions, setSessions] = useState([]);
-  const [projects, setProjects] = useState([]);
-  const [feed, setFeed] = useState([]);
-  const [toasts, setToasts] = useState([]);
-  const [now, setNow] = useState(Date.now());
-  const [memoryOpen, setMemoryOpen] = useState(false);
-  const [schedulesOpen, setSchedulesOpen] = useState(false);
-  const [statsOpen, setStatsOpen] = useState(false);
-  const navigate = useNavigate();
-  const esRefs = useRef({});
-  const sessionsRef = useRef(sessions);
+  const [sessions, setSessions]       = useState([]);
+  const [feed, setFeed]               = useState([]);
+  const [triageItems, setTriageItems] = useState([]);
+  const [toasts, setToasts]           = useState([]);
+  const [now, setNow]                 = useState(Date.now());
+
+  const [tab, setTab]                 = useState('all');
+  const [scope, setScope]             = useState('all');
+  const [selectedAgent, setSelected]  = useState(null);
+  const [triageFocus, setFocus]       = useState(0);
+  const [triageActions, setActions]   = useState({});
+  const [logHeight, setLogHeight]     = useState(220);
+  const [helpOpen, setHelpOpen]       = useState(false);
+  const [openChat, setOpenChat]       = useState(null);
+  const [memoryOpen, setMemoryOpen]   = useState(false);
+  const [schedulesOpen, setSchedules] = useState(false);
+  const [statsOpen, setStats]         = useState(false);
+
+  const sessionsRef    = useRef(sessions);
+  const lastEventIdRef = useRef(0);
+  const esRefs         = useRef({});
   useEffect(() => { sessionsRef.current = sessions; }, [sessions]);
 
-  // tick elapsed timers while any agent is running
+  // tick timer for running agents
   useEffect(() => {
     const id = setInterval(() => {
       if (sessionsRef.current.some(s => s.status === 'running')) setNow(Date.now());
@@ -104,8 +150,17 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // poll for background agent activity (tool calls, plan_ready, done)
-  const lastEventIdRef = useRef(0);
+  // initial load
+  useEffect(() => {
+    listSessions().then(({ sessions: list, max_event_id }) => {
+      if (max_event_id) lastEventIdRef.current = max_event_id;
+      if (!list?.length) return;
+      setSessions(list.map(makeSessionState));
+    });
+    listActionItems().then(({ active }) => setTriageItems(active ?? []));
+  }, []);
+
+  // event polling
   useEffect(() => {
     const id = setInterval(async () => {
       try {
@@ -114,29 +169,21 @@ export default function App() {
         lastEventIdRef.current = events[events.length - 1].id;
 
         for (const ev of events) {
-          const session = sessionsRef.current.find(s => s.id === ev.session_id);
+          const sess = sessionsRef.current.find(s => s.id === ev.session_id);
 
           if (ev.event_type === 'tool_call') {
+            const d = new Date(ev.created_at), p = n => String(n).padStart(2, '0');
             setFeed(prev => [{
-              id: `ev-${ev.id}`,
-              sessionId: ev.session_id,
-              color: session?.color ?? PALETTE[0],
-              sessionTitle: ev.session_title || session?.title || 'Agent',
-              tool: ev.data.tool,
-              args: ev.data.args,
-              ts: new Date(ev.created_at).getTime(),
-            }, ...prev].slice(0, 60));
+              t: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+              agent: sess?.linear_issue_key || ev.session_title?.split(' ')[0] || ev.session_id?.slice(0, 8) || '—',
+              lvl: 'tool',
+              msg: `${ev.data.tool} ${argsSummary(ev.data.tool, ev.data.args || {})}`.trim(),
+            }, ...prev].slice(0, 80));
             setSessions(prev => prev.map(s => {
-              if (s.id !== ev.session_id) return s;
-              // Skip if already loaded via backfill
-              if (ev.id <= s.eventsLoadedUpTo) return s;
-              return {
-                ...s,
-                status: 'running',
-                startedAt: s.startedAt ?? Date.now(),
+              if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
+              return { ...s, status: 'running', startedAt: s.startedAt ?? Date.now(),
                 liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args } }],
-                stepCount: s.stepCount + 1,
-              };
+                stepCount: s.stepCount + 1 };
             }));
           }
 
@@ -151,32 +198,26 @@ export default function App() {
           if (ev.event_type === 'done') {
             setSessions(prev => prev.map(s =>
               s.id === ev.session_id
-                ? {
-                    ...s,
-                    status: 'done', liveSteps: [], liveText: '', eventsLoadedUpTo: 0,
-                    inputTokens:  ev.data.input_tokens  ?? s.inputTokens,
-                    outputTokens: ev.data.output_tokens ?? s.outputTokens,
-                  }
+                ? { ...s, status: 'done', liveSteps: [], liveText: '', eventsLoadedUpTo: 0,
+                    inputTokens: ev.data.input_tokens ?? s.inputTokens,
+                    outputTokens: ev.data.output_tokens ?? s.outputTokens }
                 : s
             ));
             getSession(ev.session_id).then(data => {
               setSessions(prev => prev.map(s =>
-                s.id === ev.session_id ? { ...s, messages: data.messages } : s
+                s.id === ev.session_id ? { ...s, messages: data.messages, title: data.title || s.title } : s
               ));
             });
           }
 
           if (ev.event_type === 'task_spawned') {
-            // A new task session was created — refresh sessions and projects lists
             listSessions().then(({ sessions: list }) => {
               setSessions(prev => list.map((s, i) => {
-                const existing = prev.find(p => p.id === s.id);
-                return existing
-                  ? { ...existing, title: s.title, session_role: s.session_role, project_id: s.project_id }
-                  : makeSessionState(s, i);
+                const ex = prev.find(p => p.id === s.id);
+                return ex ? { ...ex, title: s.title, session_role: s.session_role, project_id: s.project_id }
+                          : makeSessionState(s, i);
               }));
             });
-            listProjects().then(({ projects: list }) => setProjects(list));
           }
         }
       } catch (_) {}
@@ -184,169 +225,126 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
-  // auto-dismiss toasts after 5s
-  const dismissToast = useCallback((id) => {
-    setToasts(prev => prev.filter(t => t.id !== id));
-  }, []);
+  // toast auto-dismiss
+  const dismissToast = useCallback(id => setToasts(prev => prev.filter(t => t.id !== id)), []);
   useEffect(() => {
     if (!toasts.length) return;
     const id = setTimeout(() => dismissToast(toasts[0].id), 5000);
     return () => clearTimeout(id);
   }, [toasts, dismissToast]);
 
-  useEffect(() => {
-    listSessions().then(({ sessions: list, max_event_id }) => {
-      // Start the event poll from the current max so we don't replay historical events
-      // (which would incorrectly mark stalled sessions as running)
-      if (max_event_id) lastEventIdRef.current = max_event_id;
-      if (!list.length) return;
-      const loaded = list.map((s, i) => ({
-        ...makeSessionState(s, i),
-        inputTokens: s.input_tokens ?? 0,
-        outputTokens: s.output_tokens ?? 0,
-        hasPendingPlan: s.has_pending_plan ?? false,
-      }));
-      setSessions(loaded);
-    });
-    listProjects().then(({ projects: list }) => setProjects(list ?? []));
-  }, []);
-
-  const refreshSessions = useCallback(() => {
-    return listSessions().then(({ sessions: list }) => {
-      setSessions(prev => list.map((s, i) => {
-        const existing = prev.find(p => p.id === s.id);
-        return existing
-          ? {
-              ...existing,
-              title: s.title, is_work: s.is_work,
-              linear_issue_key: s.linear_issue_key, linear_issue_url: s.linear_issue_url,
-              linear_task_type: s.linear_task_type,
-              session_role: s.session_role, project_id: s.project_id,
-              inputTokens:  s.input_tokens ?? existing.inputTokens,
-              outputTokens: s.output_tokens ?? existing.outputTokens,
-            }
-          : { ...makeSessionState(s, i), inputTokens: s.input_tokens ?? 0, outputTokens: s.output_tokens ?? 0 };
-      }));
-    });
-    listProjects().then(({ projects: list }) => setProjects(list ?? []));
-  }, []);
-
-  const newProject = useCallback(async (title, description) => {
-    const p = await createProject({ title, description });
-    setProjects(prev => [p, ...prev]);
-    // The orchestrator session needs to appear in sessions too
+  const refreshSessions = useCallback(() =>
     listSessions().then(({ sessions: list }) => {
       setSessions(prev => list.map((s, i) => {
-        const existing = prev.find(e => e.id === s.id);
-        return existing ? existing : makeSessionState(s, i);
+        const ex = prev.find(p => p.id === s.id);
+        return ex ? { ...ex, title: s.title, is_work: s.is_work,
+            linear_issue_key: s.linear_issue_key, linear_task_type: s.linear_task_type,
+            inputTokens: s.input_tokens ?? ex.inputTokens, outputTokens: s.output_tokens ?? ex.outputTokens }
+          : makeSessionState(s, i);
       }));
-    });
-    navigate(`/project/${p.id}`);
-  }, [navigate]);
+    }), []);
+
+  const openSession = useCallback((id) => {
+    setOpenChat(id);
+    setSelected(id);
+    const sess = sessionsRef.current.find(s => s.id === id);
+    if (!sess) return;
+    if (sess.status === 'running' && !sess.liveSteps?.length && !sess.eventsLoadedUpTo) {
+      getSessionEvents(id).then(({ events }) => {
+        if (!events?.length) return;
+        const steps = events.filter(e => e.event_type === 'tool_call')
+          .map(e => ({ step_type: 'tool_call', data: { tool: e.data.tool, args: e.data.args } }));
+        setSessions(prev => prev.map(s =>
+          s.id === id ? { ...s, liveSteps: steps, stepCount: steps.length, eventsLoadedUpTo: events[events.length - 1].id } : s
+        ));
+      });
+    } else if (!sess.messages?.length && sess.status !== 'running') {
+      getSession(id).then(data => {
+        setSessions(prev => prev.map(s => {
+          if (s.id !== id) return s;
+          const up = { ...s, messages: data.messages };
+          if (data.pending_plan && !s.pendingApproval) {
+            up.pendingApproval = { ...data.pending_plan, event_type: 'plan' };
+            up.status = 'running';
+          }
+          return up;
+        }));
+      });
+    }
+  }, []);
 
   const newAgent = useCallback(async () => {
     const s = await createSession();
-    setSessions(prev => [makeSessionState(s, prev.length), ...prev]);
-    navigate(`/session/${s.id}`);
-  }, [navigate]);
-
-  const switchTo = useCallback((id) => {
-    navigate(`/session/${id}`);
-  }, [navigate]);
+    const ns = makeSessionState(s, sessionsRef.current.length);
+    setSessions(prev => [ns, ...prev]);
+    openSession(s.id);
+  }, [openSession]);
 
   const send = useCallback((sessionId, prompt) => {
-    const session = sessionsRef.current.find(s => s.id === sessionId);
-    const color = session?.color ?? PALETTE[0];
-    const title = session?.title || 'New agent';
-
+    const sess = sessionsRef.current.find(s => s.id === sessionId);
     setSessions(prev => prev.map(s =>
       s.id === sessionId
-        ? { ...s, status: 'running', liveSteps: [], liveText: '', stepCount: 0,
-            startedAt: Date.now(),
+        ? { ...s, status: 'running', liveSteps: [], liveText: '', stepCount: 0, startedAt: Date.now(),
             messages: [...s.messages, { role: 'user', content: prompt, steps: [] }] }
         : s
     ));
-
     const acc = { steps: [], text: '' };
-
-    const pushFeed = (tool, args) => {
-      setFeed(prev => [{
-        id: Math.random(), sessionId, color,
-        sessionTitle: sessionsRef.current.find(s => s.id === sessionId)?.title || title,
-        tool, args, ts: Date.now(),
-      }, ...prev].slice(0, 60));
-    };
-
-    const es = streamAgent(sessionId, prompt, (event) => {
-      if (event.type === 'tool_call') {
-        acc.steps = [...acc.steps, { step_type: 'tool_call', data: event.payload }];
-        pushFeed(event.payload.tool, event.payload.args);
+    const es = streamAgent(sessionId, prompt, ev => {
+      if (ev.type === 'tool_call') {
+        acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload }];
+        setFeed(prev => [{
+          t: fmtT(), agent: sess?.linear_issue_key || sessionId.slice(0, 8),
+          lvl: 'tool', msg: `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim(),
+        }, ...prev].slice(0, 80));
         setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(s => s.step_type === 'tool_call').length } : s
+          s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length } : s
         ));
-      } else if (event.type === 'tool_result') {
-        acc.steps = [...acc.steps, { step_type: 'tool_result', data: event.payload }];
+      } else if (ev.type === 'tool_result') {
+        acc.steps = [...acc.steps, { step_type: 'tool_result', data: ev.payload }];
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveSteps: acc.steps } : s));
+      } else if (ev.type === 'tokens') {
         setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, liveSteps: acc.steps } : s
+          s.id === sessionId ? { ...s, inputTokens: ev.payload.input, outputTokens: ev.payload.output } : s
         ));
-      } else if (event.type === 'tokens') {
+      } else if (ev.type === 'assistant_text') {
+        acc.text = ev.payload.text;
+        setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveText: acc.text } : s));
+      } else if (ev.type === 'done') {
         setSessions(prev => prev.map(s =>
           s.id === sessionId
-            ? { ...s, inputTokens: event.payload.input, outputTokens: event.payload.output }
-            : s
-        ));
-      } else if (event.type === 'assistant_text') {
-        acc.text = event.payload.text;
-        setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, liveText: acc.text } : s
-        ));
-      } else if (event.type === 'done') {
-        const finalSteps = acc.steps;
-        const stepCount = finalSteps.filter(s => s.step_type === 'tool_call').length;
-        setSessions(prev => prev.map(s =>
-          s.id === sessionId
-            ? { ...s, status: 'done', liveSteps: [], liveText: '', stepCount,
-                inputTokens: event.payload.input_tokens ?? s.inputTokens,
-                outputTokens: event.payload.output_tokens ?? s.outputTokens,
-                messages: [...s.messages, { role: 'assistant', content: acc.text, steps: finalSteps }] }
+            ? { ...s, status: 'done', liveSteps: [], liveText: '',
+                stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length,
+                inputTokens: ev.payload.input_tokens ?? s.inputTokens,
+                outputTokens: ev.payload.output_tokens ?? s.outputTokens,
+                messages: [...s.messages, { role: 'assistant', content: acc.text, steps: acc.steps }] }
             : s
         ));
         getSession(sessionId).then(data => {
-          setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: data.title } : s));
+          setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: data.title || s.title } : s));
         });
-        // toast if user is looking elsewhere
-        if (!window.location.pathname.includes(sessionId)) {
-          const t = sessionsRef.current.find(s => s.id === sessionId);
-          setToasts(prev => [...prev, {
-            id: Math.random(), color,
-            title: t?.title || title,
-            stepCount,
-          }]);
-        }
         delete esRefs.current[sessionId];
-      } else if (event.type === 'plan_ready') {
+      } else if (ev.type === 'plan_ready') {
         setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, pendingApproval: { ...event.payload, event_type: 'plan' } } : s
+          s.id === sessionId ? { ...s, pendingApproval: { ...ev.payload, event_type: 'plan' } } : s
         ));
-      } else if (event.type === 'approval_required') {
+      } else if (ev.type === 'approval_required') {
         setSessions(prev => prev.map(s =>
-          s.id === sessionId ? { ...s, pendingApproval: { ...event.payload, event_type: 'action' } } : s
+          s.id === sessionId ? { ...s, pendingApproval: { ...ev.payload, event_type: 'action' } } : s
         ));
-      } else if (event.type === 'approval_granted' || event.type === 'approval_rejected') {
+      } else if (ev.type === 'approval_granted' || ev.type === 'approval_rejected') {
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, pendingApproval: null } : s
         ));
-      } else if (event.type === 'error') {
+      } else if (ev.type === 'error') {
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'error', liveSteps: [], liveText: '', pendingApproval: null,
-                messages: [...s.messages, { role: 'assistant', content: `Error: ${event.payload.message}`, steps: [] }] }
+                messages: [...s.messages, { role: 'assistant', content: `Error: ${ev.payload.message}`, steps: [] }] }
             : s
         ));
         delete esRefs.current[sessionId];
       }
     });
-
     esRefs.current[sessionId] = es;
   }, []);
 
@@ -355,31 +353,193 @@ export default function App() {
     approveAction(sessionId, approved);
   }, []);
 
-  const saveSystemPrompt = useCallback((sessionId, value) => {
-    setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, system_prompt: value } : s));
-    updateSession(sessionId, { system_prompt: value });
-  }, []);
+  const handleTriageAction = useCallback(async (id, action) => {
+    if (action === 'investigate') {
+      setActions(prev => ({ ...prev, [id]: 'investigate' }));
+      const data = await actionItemAct(id, 'investigate');
+      if (data.session_id) {
+        await refreshSessions();
+        openSession(data.session_id);
+      }
+    } else {
+      setActions(prev => ({ ...prev, [id]: action }));
+      actionItemAct(id, action).then(() =>
+        listActionItems().then(({ active }) => setTriageItems(active ?? []))
+      );
+    }
+  }, [refreshSessions, openSession]);
 
-  const location = useLocation();
-  const activeId = location.pathname.match(/\/session\/([^/]+)/)?.[1] ?? null;
-  const globalInputTokens = sessions.reduce((sum, s) => sum + (s.inputTokens || 0), 0);
-  const globalOutputTokens = sessions.reduce((sum, s) => sum + (s.outputTokens || 0), 0);
+  // computed values
+  const counts = useMemo(() => {
+    const st = sessions.map(getSessionStatus);
+    return {
+      all: sessions.length,
+      needs_input: st.filter(s => s === 'needs_input').length,
+      running: st.filter(s => s === 'running').length,
+      work: sessions.filter(s => s.is_work).length,
+      personal: sessions.filter(s => !s.is_work).length,
+      done: st.filter(s => s === 'done').length,
+      error: st.filter(s => s === 'error').length,
+    };
+  }, [sessions]);
+
+  const totals = useMemo(() => {
+    const tokens = sessions.reduce((sum, s) => sum + (s.inputTokens || 0) + (s.outputTokens || 0), 0);
+    const cost   = sessions.reduce((sum, s) => sum + estimateCost(s.inputTokens || 0, s.outputTokens || 0), 0);
+    const queued = sessions.filter(s => getSessionStatus(s) === 'queued').length;
+    return { tokens, cost, queued };
+  }, [sessions]);
+
+  const visibleSessions = useMemo(() => sessions.filter(s => {
+    const st = getSessionStatus(s);
+    if (tab === 'needs_input') return st === 'needs_input';
+    if (tab === 'running')     return st === 'running' || st === 'needs_input';
+    if (tab === 'done')        return st === 'done';
+    if (tab === 'error')       return st === 'error';
+    if (tab === 'work')        return s.is_work;
+    if (tab === 'personal')    return !s.is_work;
+    return true;
+  }), [sessions, tab]);
+
+  const visibleTriage = useMemo(() => triageItems.filter(s => {
+    if (tab === 'work')     return s.type === 'work';
+    if (tab === 'personal') return s.type === 'personal';
+    if (['running', 'done', 'error', 'needs_input'].includes(tab)) return false;
+    return true;
+  }), [triageItems, tab]);
+
+  const liveTriage = visibleTriage.filter(s => !triageActions[s.id]);
+  const focusedItem = liveTriage[triageFocus];
+
+  // keyboard nav
+  useEffect(() => {
+    const onKey = e => {
+      if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (openChat) return;
+      if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFocus(f => Math.min(liveTriage.length - 1, f + 1)); }
+      else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setFocus(f => Math.max(0, f - 1)); }
+      else if (e.key === 'i' && focusedItem) { e.preventDefault(); handleTriageAction(focusedItem.id, 'investigate'); }
+      else if (e.key === 's' && focusedItem) { e.preventDefault(); handleTriageAction(focusedItem.id, 'save'); }
+      else if (e.key === 'n' && focusedItem) { e.preventDefault(); handleTriageAction(focusedItem.id, 'dismiss'); }
+      else if (e.key === '?') setHelpOpen(h => !h);
+      else if (e.key === 'Escape') setHelpOpen(false);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [triageFocus, liveTriage, openChat, focusedItem, handleTriageAction]);
+
+  const openChatSession = sessions.find(s => s.id === openChat) ?? null;
+  const globalIn  = sessions.reduce((sum, s) => sum + (s.inputTokens || 0), 0);
+  const globalOut = sessions.reduce((sum, s) => sum + (s.outputTokens || 0), 0);
 
   return (
-    <div style={{ display: 'flex', height: '100vh', background: '#0f172a', color: '#f1f5f9', fontFamily: 'system-ui, sans-serif' }}>
-      <Sidebar sessions={sessions} projects={projects} activeId={activeId} onSelect={switchTo} onNew={newAgent} onNewProject={newProject} onDashboard={() => navigate('/')} onMemory={() => setMemoryOpen(true)} onSchedules={() => setSchedulesOpen(true)} onStats={() => setStatsOpen(true)} globalInputTokens={globalInputTokens} globalOutputTokens={globalOutputTokens} onSessionsChanged={refreshSessions} now={now} />
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <Routes>
-          <Route path="/" element={<AgentCards sessions={sessions} onSelect={switchTo} onNew={newAgent} now={now} onNavigate={switchTo} onSessionsChanged={refreshSessions} />} />
-          <Route path="/session/:id" element={<SessionView sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
-          <Route path="/project/:id" element={<ProjectView projects={projects} sessions={sessions} setSessions={setSessions} send={send} approve={approve} saveSystemPrompt={saveSystemPrompt} now={now} />} />
-        </Routes>
-      </div>
-      <ActivityFeed events={feed} now={now} />
-      <Toast toasts={toasts} onDismiss={dismissToast} onSelect={switchTo} />
+    <div className="app">
+      <TitleBar running={counts.running} queued={totals.queued} totalCost={totals.cost} />
+
+      <LeftRail
+        sessions={sessions}
+        selected={selectedAgent}
+        onSelect={openSession}
+        scope={scope}
+        setScope={setScope}
+        onNew={newAgent}
+        onMemory={() => setMemoryOpen(true)}
+        onSchedules={() => setSchedules(true)}
+        onStats={() => setStats(true)}
+        globalInputTokens={globalIn}
+        globalOutputTokens={globalOut}
+      />
+
+      <main className="main">
+        {/* Tabs */}
+        <div className="tabs">
+          {[
+            ['all', 'all', counts.all],
+            ['needs_input', 'needs input', counts.needs_input, true],
+            ['running', 'running', counts.running],
+            ['work', 'work', counts.work],
+            ['personal', 'personal', counts.personal],
+            ['done', 'done', counts.done],
+            ['error', 'error', counts.error],
+          ].map(([k, label, n, isNeeds]) => (
+            <div key={k} className="tab" data-on={tab === k ? '1' : '0'}
+              data-needs={isNeeds && n > 0 ? '1' : '0'} onClick={() => setTab(k)}>
+              {isNeeds && n > 0 && <span className="pulse" />}
+              {label} <span className="n">{n}</span>
+            </div>
+          ))}
+          <div className="right">
+            <span style={{ color: 'var(--fg-4)' }}>triage: {visibleTriage.length}</span>
+            <button className="btn primary" onClick={newAgent}>＋ new agent</button>
+          </div>
+        </div>
+
+        {/* Filter bar */}
+        <div className="filterbar">
+          <span style={{ color: 'var(--fg-4)' }}>triage:</span>
+          <div className="grp">
+            <button className="pill" data-on="1">all sources <span className="n">{visibleTriage.length}</span></button>
+          </div>
+          <span className="spacer" />
+          <span style={{ color: 'var(--fg-4)' }}>sort:</span>
+          <button className="pill" data-on="1">queue position</button>
+        </div>
+
+        <div className="main-scroll">
+          {visibleTriage.length > 0 && (
+            <>
+              <div className="sect">
+                <b>triage</b>
+                <span>{liveTriage.length} of {visibleTriage.length}</span>
+                <span className="hint">
+                  <kbd>j</kbd><kbd>k</kbd> navigate · <kbd>i</kbd> investigate · <kbd>s</kbd> save · <kbd>n</kbd> dismiss
+                </span>
+              </div>
+              <TriageQueue items={visibleTriage} focus={triageFocus} setFocus={setFocus} actions={triageActions} onAction={handleTriageAction} />
+            </>
+          )}
+          <div className="sect">
+            <b>sessions</b>
+            <span>{visibleSessions.length}</span>
+            <span className="hint">click any row → open chat thread</span>
+          </div>
+          <SessionsList items={visibleSessions} onOpen={openSession} now={now} />
+        </div>
+      </main>
+
+      <BottomLog lines={feed} height={logHeight} setHeight={setLogHeight} />
+
+      <StatusBar
+        running={counts.running}
+        queued={totals.queued}
+        done={counts.done}
+        errors={counts.error}
+        needsInput={counts.needs_input}
+        totalTokens={totals.tokens}
+        totalCost={totals.cost}
+        focused={focusedItem?.title}
+        onOpenNeeds={() => {
+          const first = sessions.find(s => getSessionStatus(s) === 'needs_input');
+          if (first) openSession(first.id);
+        }}
+      />
+
+      {openChat && openChatSession && (
+        <ChatView
+          session={openChatSession}
+          onClose={() => setOpenChat(null)}
+          onSend={prompt => send(openChat, prompt)}
+          onApprove={() => approve(openChat, true)}
+          onReject={() => approve(openChat, false)}
+        />
+      )}
+
+      {helpOpen && <HelpOverlay onClose={() => setHelpOpen(false)} />}
+
+      <Toast toasts={toasts} onDismiss={dismissToast} onSelect={openSession} />
       {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
-      {schedulesOpen && <SchedulePanel onClose={() => setSchedulesOpen(false)} />}
-      {statsOpen && <StatsPanel onClose={() => setStatsOpen(false)} />}
+      {schedulesOpen && <SchedulePanel onClose={() => setSchedules(false)} />}
+      {statsOpen && <StatsPanel onClose={() => setStats(false)} />}
     </div>
   );
 }
