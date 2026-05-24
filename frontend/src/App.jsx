@@ -131,6 +131,7 @@ export default function App() {
   const [triageActions, setActions]   = useState({});
   const [logHeight, setLogHeight]     = useState(220);
   const [helpOpen, setHelpOpen]       = useState(false);
+  const [triageOpen, setTriageOpen]       = useState(true);
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
@@ -488,14 +489,15 @@ export default function App() {
         <div className="main-scroll">
           {visibleTriage.length > 0 && (
             <>
-              <div className="sect">
+              <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setTriageOpen(o => !o)}>
                 <b>triage</b>
                 <span>{liveTriage.length} of {visibleTriage.length}</span>
+                <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{triageOpen ? '▾' : '▸'}</span>
                 <span className="hint">
                   <kbd>j</kbd><kbd>k</kbd> navigate · <kbd>i</kbd> investigate · <kbd>s</kbd> save · <kbd>n</kbd> dismiss
                 </span>
               </div>
-              <TriageQueue items={visibleTriage} focus={triageFocus} setFocus={setFocus} actions={triageActions} onAction={handleTriageAction} />
+              {triageOpen && <TriageQueue items={visibleTriage} focus={triageFocus} setFocus={setFocus} actions={triageActions} onAction={handleTriageAction} />}
             </>
           )}
           <div className="sect">
