@@ -7,7 +7,7 @@ function useClock() {
   return t;
 }
 
-export default function BottomLog({ lines, height, setHeight }) {
+export default function BottomLog({ lines, height, setHeight, onClear }) {
   const [activeTab, setActiveTab] = useState('activity');
   const bodyRef = useRef(null);
   const clock = useClock();
@@ -35,6 +35,7 @@ export default function BottomLog({ lines, height, setHeight }) {
         ))}
         <div className="right">
           <span className="live"><span className="d" /> live</span>
+          <button title="clear" onClick={onClear}>clear</button>
           <button title="collapse" onClick={() => setHeight(28)}>−</button>
           <button title="expand" onClick={() => setHeight(220)}>+</button>
         </div>

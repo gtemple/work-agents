@@ -269,10 +269,19 @@ def approve_action(request, session_id):
 def get_events(request):
     after_id = int(request.GET.get('after', 0))
     session_id = request.GET.get('session')
-    qs = GlobalEvent.objects.filter(id__gt=after_id).select_related('session').order_by('id')
+    latest = request.GET.get('latest')
+
+    qs = GlobalEvent.objects.select_related('session').order_by('id')
     if session_id:
         qs = qs.filter(session_id=session_id)
-    events = qs[:200]
+
+    if latest:
+        n = min(int(latest), 500)
+        rows = list(qs.order_by('-id')[:n])
+        rows.reverse()
+    else:
+        rows = list(qs.filter(id__gt=after_id)[:200])
+
     return JsonResponse({'events': [
         {
             'id': e.id,
@@ -282,7 +291,7 @@ def get_events(request):
             'data': e.data,
             'created_at': e.created_at.isoformat(),
         }
-        for e in events
+        for e in rows
     ]})
 
 

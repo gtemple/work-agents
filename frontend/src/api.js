@@ -103,6 +103,11 @@ export async function getEvents(afterId = 0) {
   return res.json();
 }
 
+export async function getRecentEvents(n = 80) {
+  const res = await fetch(`/api/events/?latest=${n}`);
+  return res.json();
+}
+
 export async function getSessionEvents(sessionId) {
   const res = await fetch(`/api/events/?session=${sessionId}&after=0`);
   return res.json();

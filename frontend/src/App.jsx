@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import {
   createSession, listSessions, getSession, streamAgent, updateSession,
-  approveAction, getEvents, getSessionEvents,
+  approveAction, getEvents, getSessionEvents, getRecentEvents,
   listActionItems, actionItemAct,
   listProcesses,
 } from './api';
@@ -161,6 +161,21 @@ export default function App() {
       setSessions(list.map(makeSessionState));
     });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
+    getRecentEvents(80).then(({ events }) => {
+      if (!events?.length) return;
+      const lines = events
+        .filter(e => e.event_type === 'tool_call')
+        .map(e => {
+          const d = new Date(e.created_at), p = n => String(n).padStart(2, '0');
+          return {
+            t: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
+            agent: e.session_title?.split(' ')[0] || e.session_id?.slice(0, 8) || '—',
+            lvl: 'tool',
+            msg: `${e.data.tool} ${argsSummary(e.data.tool, e.data.args || {})}`.trim(),
+          };
+        });
+      setFeed(lines.slice(-60));
+    });
   }, []);
 
   const refreshProcesses = useCallback(() =>
@@ -529,7 +544,7 @@ export default function App() {
         </div>
       </main>
 
-      <BottomLog lines={feed} height={logHeight} setHeight={setLogHeight} />
+      <BottomLog lines={feed} height={logHeight} setHeight={setLogHeight} onClear={() => setFeed([])} />
 
       <StatusBar
         running={counts.running}
