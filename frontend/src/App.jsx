@@ -10,9 +10,7 @@ import SessionsList, { getSessionStatus } from './components/SessionsList';
 import BottomLog from './components/BottomLog';
 import ChatView from './components/ChatView';
 import Toast from './components/Toast';
-import MemoryPanel from './components/MemoryPanel';
-import SchedulePanel from './components/SchedulePanel';
-import StatsPanel from './components/StatsPanel';
+import WorkspacePanel from './components/WorkspacePanel';
 import { estimateCost, argsSummary } from './utils';
 import './index.css';
 
@@ -132,10 +130,8 @@ export default function App() {
   const [triageActions, setActions]   = useState({});
   const [logHeight, setLogHeight]     = useState(220);
   const [helpOpen, setHelpOpen]       = useState(false);
-  const [openChat, setOpenChat]       = useState(null);
-  const [memoryOpen, setMemoryOpen]   = useState(false);
-  const [schedulesOpen, setSchedules] = useState(false);
-  const [statsOpen, setStats]         = useState(false);
+  const [openChat, setOpenChat]           = useState(null);
+  const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
 
   const sessionsRef    = useRef(sessions);
   const lastEventIdRef = useRef(0);
@@ -422,7 +418,7 @@ export default function App() {
       else if (e.key === 's' && focusedItem) { e.preventDefault(); handleTriageAction(focusedItem.id, 'save'); }
       else if (e.key === 'n' && focusedItem) { e.preventDefault(); handleTriageAction(focusedItem.id, 'dismiss'); }
       else if (e.key === '?') setHelpOpen(h => !h);
-      else if (e.key === 'Escape') setHelpOpen(false);
+      else if (e.key === 'Escape') { setHelpOpen(false); setOpenWorkspace(null); }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
@@ -443,9 +439,9 @@ export default function App() {
         scope={scope}
         setScope={setScope}
         onNew={newAgent}
-        onMemory={() => setMemoryOpen(true)}
-        onSchedules={() => setSchedules(true)}
-        onStats={() => setStats(true)}
+        onMemory={() => setOpenWorkspace('memory')}
+        onSchedules={() => setOpenWorkspace('schedules')}
+        onStats={() => setOpenWorkspace('stats')}
         globalInputTokens={globalIn}
         globalOutputTokens={globalOut}
       />
@@ -537,9 +533,12 @@ export default function App() {
       {helpOpen && <HelpOverlay onClose={() => setHelpOpen(false)} />}
 
       <Toast toasts={toasts} onDismiss={dismissToast} onSelect={openSession} />
-      {memoryOpen && <MemoryPanel onClose={() => setMemoryOpen(false)} />}
-      {schedulesOpen && <SchedulePanel onClose={() => setSchedules(false)} />}
-      {statsOpen && <StatsPanel onClose={() => setStats(false)} />}
+      {openWorkspace && (
+        <WorkspacePanel
+          initialTab={openWorkspace}
+          onClose={() => setOpenWorkspace(null)}
+        />
+      )}
     </div>
   );
 }
