@@ -99,6 +99,17 @@ class GlobalEvent(models.Model):
         ordering = ['id']
 
 
+class RepoMemory(models.Model):
+    """Persistent knowledge base for a repository, structured as markdown sections.
+    Shared across all agents working on the same repo."""
+    repo = models.CharField(max_length=255, unique=True)  # e.g. "purposely/purposely-web"
+    content = models.TextField(blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return self.repo
+
+
 class Memory(models.Model):
     key = models.CharField(max_length=255, unique=True)
     value = models.TextField()

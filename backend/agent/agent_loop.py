@@ -67,13 +67,15 @@ TASK_TYPE_INSTRUCTIONS = {
 
 WORK_SYSTEM_PROMPT_PREFIX = """You are working on a Linear issue for the Purposely codebase.
 
-IMPORTANT: Before writing any code you MUST:
-1. Clone the repository with clone_repo("purposely/purposely-web")
-2. Explore the relevant files with list_files and bash("find . -type f -name '*.py' | head -40") etc.
-3. Read the key files that are likely to change
-4. Call submit_plan with a concrete plan listing exactly which files you will change and the ordered steps
-5. Wait for plan approval, then proceed with implementation
+IMPORTANT: Before writing any code you MUST follow these steps in order:
+1. Call read_repo_memory("purposely/purposely-web") to load accumulated knowledge about the codebase
+2. Clone the repository with clone_repo("purposely/purposely-web") if not already present
+3. Explore the relevant files — use list_files, bash("find ..."), and read key files
+4. If you discover architecture patterns, conventions, or gotchas not already in the knowledge base, call update_repo_memory() to save them
+5. Call submit_plan with a concrete plan listing exactly which files you will change and the ordered steps
+6. Wait for plan approval, then proceed with implementation
 
+The repo knowledge base is shared across all agents — keep it accurate and useful for future tasks.
 Do not skip the planning step. The user needs to review and approve your plan before you write code."""
 
 
@@ -85,6 +87,14 @@ def _compose_system_prompt(session) -> str:
         parts.append(WORK_SYSTEM_PROMPT_PREFIX)
         if session.linear_task_type and session.linear_task_type in TASK_TYPE_INSTRUCTIONS:
             parts.append(TASK_TYPE_INSTRUCTIONS[session.linear_task_type])
+        # Pre-load repo knowledge so it's in context from the first turn
+        from .models import RepoMemory
+        try:
+            rm = RepoMemory.objects.get(repo='purposely/purposely-web')
+            if rm.content.strip():
+                parts.append(f'## Current repo knowledge base (purposely/purposely-web)\n{rm.content}')
+        except RepoMemory.DoesNotExist:
+            pass
 
     if settings.GITHUB_USERNAME:
         parts.append(

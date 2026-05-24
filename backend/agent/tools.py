@@ -5,6 +5,26 @@ from . import github as gh
 from . import web
 
 
+def _upsert_section(doc: str, section: str, content: str) -> str:
+    """Replace or append a ## section in a markdown document."""
+    header = f'## {section}'
+    lines = doc.split('\n')
+
+    # Find where this section starts
+    start = next((i for i, l in enumerate(lines) if l.strip() == header), None)
+
+    if start is None:
+        # Append new section
+        prefix = doc.rstrip()
+        return f'{prefix}\n\n{header}\n{content}' if prefix else f'{header}\n{content}'
+
+    # Find where the next ## section starts (or end of doc)
+    end = next((i for i in range(start + 1, len(lines)) if lines[i].startswith('## ')), len(lines))
+
+    new_lines = lines[:start] + [header, content] + lines[end:]
+    return '\n'.join(new_lines)
+
+
 DECLARATIONS = [
     {
         'name': 'run_code',
@@ -267,6 +287,52 @@ DECLARATIONS = [
         },
     },
     {
+        'name': 'read_repo_memory',
+        'description': (
+            'Read the persistent knowledge base for a repository. '
+            'Always call this at the start of any work task before exploring the codebase — '
+            'it contains architecture notes, conventions, gotchas, and patterns discovered by previous agents.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'repo': {
+                    'type': 'string',
+                    'description': 'Repository in "owner/repo" format, e.g. "purposely/purposely-web"',
+                },
+            },
+            'required': ['repo'],
+        },
+    },
+    {
+        'name': 'update_repo_memory',
+        'description': (
+            'Update a named section of the repository knowledge base. '
+            'Call this whenever you discover something worth remembering: architecture decisions, '
+            'naming conventions, gotchas, key files, test patterns, or anything a future agent '
+            'would benefit from knowing. Use clear section names like "Architecture", "Gotchas", '
+            '"Conventions", "Key Files", "Tech Stack", "Test Patterns".'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'repo': {
+                    'type': 'string',
+                    'description': 'Repository in "owner/repo" format',
+                },
+                'section': {
+                    'type': 'string',
+                    'description': 'Section name, e.g. "Architecture", "Gotchas", "Conventions"',
+                },
+                'content': {
+                    'type': 'string',
+                    'description': 'Markdown content for this section. Replaces any existing content for the section.',
+                },
+            },
+            'required': ['repo', 'section', 'content'],
+        },
+    },
+    {
         'name': 'submit_plan',
         'description': (
             'For work tasks from Linear: after exploring the codebase, call this to submit '
@@ -455,6 +521,24 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         from .models import Memory
         deleted, _ = Memory.objects.filter(key=args['key']).delete()
         return f'Deleted memory: {args["key"]}' if deleted else f'No memory found for key: {args["key"]}'
+
+    elif tool_name == 'read_repo_memory':
+        from .models import RepoMemory
+        try:
+            rm = RepoMemory.objects.get(repo=args['repo'])
+            return rm.content if rm.content.strip() else 'No knowledge stored for this repo yet.'
+        except RepoMemory.DoesNotExist:
+            return 'No knowledge stored for this repo yet.'
+
+    elif tool_name == 'update_repo_memory':
+        from .models import RepoMemory
+        repo = args['repo']
+        section = args['section'].strip()
+        content = args['content'].strip()
+        rm, _ = RepoMemory.objects.get_or_create(repo=repo)
+        rm.content = _upsert_section(rm.content, section, content)
+        rm.save()
+        return f'Updated "{section}" in {repo} knowledge base.'
 
     elif tool_name == 'submit_plan':
         # Handled specially in agent_loop — dispatch should never be called for this
