@@ -1,9 +1,10 @@
 // Gemini pricing per 1M tokens — see ai.google.dev/pricing
 const PRICING = {
-  'gemini-2.5-flash': { input: 0.075, output: 0.30 },  // verify at ai.google.dev/pricing
-  'gemini-3.5-flash': { input: 1.50,  output: 9.00 },  // output price includes thinking tokens
+  'gemini-2.5-flash-lite': { input: 0.10,  output: 0.40 },
+  'gemini-2.5-flash':      { input: 0.30,  output: 2.50 },
+  'gemini-3.5-flash':      { input: 1.50,  output: 9.00 },
 };
-const DEFAULT_PRICING = { input: 0.075, output: 0.30 };
+const DEFAULT_PRICING = { input: 0.30, output: 2.50 };
 
 export function estimateCost(inputTokens, outputTokens, model) {
   const p = PRICING[model] || DEFAULT_PRICING;

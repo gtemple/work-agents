@@ -10,8 +10,8 @@ function sessionStatus(s) {
   return 'queued';
 }
 
-const MODELS = ['gemini-2.5-flash', 'gemini-3.5-flash'];
-const MODEL_LABEL = { 'gemini-2.5-flash': '2.5F', 'gemini-3.5-flash': '3.5F' };
+const MODELS = ['gemini-2.5-flash-lite', 'gemini-2.5-flash', 'gemini-3.5-flash'];
+const MODEL_LABEL = { 'gemini-2.5-flash-lite': '2.5L', 'gemini-2.5-flash': '2.5F', 'gemini-3.5-flash': '3.5F' };
 
 export default function LeftRail({ sessions, selected, onSelect, scope, setScope, onNew, onMemory, onSchedules, onStats, globalInputTokens, globalOutputTokens, globalModel, onModelChange }) {
   const [openWork, setOpenWork] = useState(true);

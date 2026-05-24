@@ -429,7 +429,7 @@ function SchedulesView() {
 }
 
 // ── stats view ────────────────────────────────────────────────────────────────
-function StatsView() {
+function StatsView({ globalModel }) {
   const [stats, setStats] = useState(null);
 
   useEffect(() => {
@@ -445,7 +445,8 @@ function StatsView() {
 
   const { summary, daily, top_sessions } = stats;
   const totalTokens = (summary.total_input_tokens || 0) + (summary.total_output_tokens || 0);
-  const totalCost = estimateCost(summary.total_input_tokens || 0, summary.total_output_tokens || 0);
+  // Aggregate cost uses globalModel as best estimate (daily data has no per-model breakdown)
+  const totalCost = estimateCost(summary.total_input_tokens || 0, summary.total_output_tokens || 0, globalModel);
   const avgCostPerSession = summary.total_sessions > 0 ? totalCost / summary.total_sessions : 0;
   const avgTokensPerSession = summary.total_sessions > 0 ? totalTokens / summary.total_sessions : 0;
 
@@ -525,7 +526,7 @@ function StatsView() {
                   const t = (d.input_tokens || 0) + (d.output_tokens || 0);
                   const h = Math.max(2, (t / maxTokens) * 70);
                   const isToday = i === last30.length - 1;
-                  const cost = estimateCost(d.input_tokens || 0, d.output_tokens || 0);
+                  const cost = estimateCost(d.input_tokens || 0, d.output_tokens || 0, globalModel);
                   return (
                     <div key={i} className="col" data-today={isToday ? '1' : '0'} style={{ height: 70 }}>
                       <i style={{ height: `${h}px`, marginTop: `${70 - h}px` }} />
@@ -570,7 +571,7 @@ function StatsView() {
             <div className="top-tbl">
               {top_sessions.map((s, i) => {
                 const t = (s.input_tokens || 0) + (s.output_tokens || 0);
-                const cost = estimateCost(s.input_tokens || 0, s.output_tokens || 0);
+                const cost = estimateCost(s.input_tokens || 0, s.output_tokens || 0, s.model);
                 return (
                   <div key={s.id || i} className="row">
                     <span className="rnk">#{i + 1}</span>
@@ -590,7 +591,7 @@ function StatsView() {
 }
 
 // ── workspace overlay ─────────────────────────────────────────────────────────
-export default function WorkspacePanel({ initialTab, onClose }) {
+export default function WorkspacePanel({ initialTab, onClose, globalModel }) {
   const [tab, setTab] = useState(initialTab || 'memory');
 
   useEffect(() => {
@@ -621,7 +622,7 @@ export default function WorkspacePanel({ initialTab, onClose }) {
       <div className="ws-body">
         {tab === 'memory'    && <MemoryView />}
         {tab === 'schedules' && <SchedulesView />}
-        {tab === 'stats'     && <StatsView />}
+        {tab === 'stats'     && <StatsView globalModel={globalModel} />}
       </div>
     </div>
   );

@@ -366,6 +366,7 @@ def get_stats(request):
             {
                 'id': str(s.id), 'title': s.title or 'Untitled',
                 'input_tokens': s.input_tokens, 'output_tokens': s.output_tokens,
+                'model': s.model,
                 'created_at': s.created_at.isoformat(),
             }
             for s in top_sessions
