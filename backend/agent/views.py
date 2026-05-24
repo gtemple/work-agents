@@ -539,15 +539,20 @@ def action_item_act(request, item_id, action):
     except ActionItem.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
 
+    def _refill():
+        sug.promote_queued_to_active()
+        sug.fill_queue()
+        sug.promote_queued_to_active()
+
     if action == 'save':
         item.status = 'saved'
         item.save(update_fields=['status'])
-        sug.promote_queued_to_active()
+        threading.Thread(target=_refill, daemon=True).start()
 
     elif action == 'dismiss':
         item.status = 'dismissed'
         item.save(update_fields=['status'])
-        sug.promote_queued_to_active()
+        threading.Thread(target=_refill, daemon=True).start()
 
     elif action == 'investigate':
         session = Session.objects.create(
@@ -558,7 +563,7 @@ def action_item_act(request, item_id, action):
         item.session = session
         item.status = 'saved'  # keep it accessible in saved list
         item.save(update_fields=['session', 'status'])
-        sug.promote_queued_to_active()
+        threading.Thread(target=_refill, daemon=True).start()
         return JsonResponse({'session_id': str(session.id)})
 
     elif action == 'refresh':
