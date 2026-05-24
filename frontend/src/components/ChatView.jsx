@@ -108,6 +108,14 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Auto-grow textarea
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [draft]);
+
   useEffect(() => {
     if (bodyRef.current) bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
   }, [session?.messages?.length, session?.liveSteps?.length, session?.liveText]);
@@ -175,7 +183,7 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
       <footer className="chat-foot">
         <div className="chat-input">
           <span className="prompt">›</span>
-          <input ref={inputRef} type="text" value={draft}
+          <textarea ref={inputRef} value={draft} rows={1}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
             placeholder={needsInput ? 'answer the agent…' : session.status === 'done' ? 'follow up or re-run…' : 'steer, ask a question, or add context…'}
