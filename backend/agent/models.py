@@ -177,3 +177,23 @@ class Memory(models.Model):
 
     def __str__(self):
         return self.key
+
+
+class Process(models.Model):
+    STATUS_CHOICES = [
+        ('running', 'Running'),
+        ('stopped', 'Stopped'),
+        ('crashed', 'Crashed'),
+    ]
+
+    session = models.ForeignKey('Session', null=True, blank=True, on_delete=models.SET_NULL, related_name='processes')
+    label = models.CharField(max_length=255)
+    command = models.TextField()
+    port = models.IntegerField(null=True, blank=True)
+    pid = models.IntegerField(null=True, blank=True)
+    status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='running')
+    started_at = models.DateTimeField(auto_now_add=True)
+    stopped_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ['-started_at']

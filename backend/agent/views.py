@@ -573,6 +573,56 @@ def action_item_act(request, item_id, action):
     return JsonResponse({'ok': True})
 
 
+def _process_dict(p):
+    return {
+        'id': p.id,
+        'session_id': str(p.session_id) if p.session_id else None,
+        'label': p.label,
+        'command': p.command,
+        'port': p.port,
+        'pid': p.pid,
+        'status': p.status,
+        'started_at': p.started_at.isoformat(),
+        'stopped_at': p.stopped_at.isoformat() if p.stopped_at else None,
+    }
+
+
+@require_http_methods(['GET'])
+def list_processes(request):
+    import os
+    from .models import Process
+    processes = list(Process.objects.all())
+    for p in processes:
+        if p.status == 'running' and p.pid:
+            try:
+                os.kill(p.pid, 0)
+            except (ProcessLookupError, OSError):
+                p.status = 'crashed'
+                p.save(update_fields=['status'])
+    return JsonResponse({'processes': [_process_dict(p) for p in processes]})
+
+
+@csrf_exempt
+@require_http_methods(['POST'])
+def stop_process_view(request, process_id):
+    import signal, os
+    from django.utils import timezone
+    from .models import Process
+    try:
+        p = Process.objects.get(id=process_id)
+    except Process.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if p.pid:
+        try:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+    p.status = 'stopped'
+    p.stopped_at = timezone.now()
+    p.save()
+    return JsonResponse({'ok': True})
+
+
 def _schedule_dict(s):
     return {
         'id': s.id,

@@ -484,6 +484,37 @@ body::before {
 }
 @keyframes blink { 50% { opacity: 0; } }
 
+/* ── processes bar ──────────────────────────────────────────────────────── */
+.proc-bar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 6px 16px; border-bottom: 1px solid var(--line);
+  background: rgba(100,210,140,.04);
+  font-size: 11px;
+}
+.proc-label {
+  color: var(--fg-4); letter-spacing: .1em; text-transform: uppercase; font-size: 10px;
+  flex-shrink: 0;
+}
+.proc-list { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.proc-item {
+  display: flex; align-items: center; gap: 6px;
+  padding: 3px 8px; border-radius: var(--r);
+  border: 1px solid var(--line); background: var(--bg-2);
+}
+.proc-item.dim { opacity: .45; }
+.proc-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+.proc-name { color: var(--fg-2); font-weight: 500; }
+.proc-url {
+  color: var(--ok); text-decoration: none; font-size: 10.5px;
+}
+.proc-url:hover { text-decoration: underline; }
+.proc-stop {
+  background: none; border: none; cursor: pointer;
+  color: var(--fg-4); font-size: 11px; padding: 0; line-height: 1;
+}
+.proc-stop:hover { color: var(--err); }
+.proc-status { color: var(--fg-4); font-size: 10px; }
+
 /* ── workspace overlay (memory / schedules / stats) ────────────────────── */
 .ws {
   position: fixed; inset: 30px 0 22px 0;

@@ -1,0 +1,4 @@
+[   69281ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://192.168.2.18:8000/api/events/?after=467:0
+[  579217ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://192.168.2.18:8000/api/events/?after=467:0
+[ 2922268ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://192.168.2.18:8000/api/events/?after=467:0
+[ 2925200ms] [ERROR] Failed to load resource: net::ERR_CONNECTION_REFUSED @ http://192.168.2.18:8000/api/events/?after=467:0

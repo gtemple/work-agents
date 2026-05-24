@@ -1,0 +1,49 @@
+- generic [ref=e3]:
+  - generic [ref=e4]:
+    - generic [ref=e5]:
+      - button "Agents" [ref=e6] [cursor=pointer]
+      - button "+" [ref=e7] [cursor=pointer]
+    - generic [ref=e8]:
+      - textbox "Search…" [ref=e9]
+      - generic [ref=e10]:
+        - button "all" [ref=e11] [cursor=pointer]
+        - button "work" [ref=e12] [cursor=pointer]
+        - button "personal" [ref=e13] [cursor=pointer]
+    - generic [ref=e14]:
+      - generic [ref=e15]:
+        - generic [ref=e16]: Projects
+        - button "+ new" [ref=e17] [cursor=pointer]
+      - generic [ref=e18]:
+        - generic [ref=e19]: Work
+        - button "sync Linear" [ref=e20] [cursor=pointer]:
+          - img [ref=e21]
+          - text: sync Linear
+      - generic [ref=e23]: No agents yet
+    - generic [ref=e24]:
+      - generic [ref=e25]: All sessions
+      - generic "0 in / 0 out" [ref=e26]: 0 tok
+    - generic [ref=e27]:
+      - button "Memory" [ref=e28] [cursor=pointer]
+      - button "Schedules" [ref=e29] [cursor=pointer]
+      - button "Stats" [ref=e30] [cursor=pointer]
+  - generic [ref=e32]:
+    - generic [ref=e33]:
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - heading "Dashboard" [level=1] [ref=e36]
+          - paragraph [ref=e37]: 0 sessions
+        - button "+ New agent" [ref=e38] [cursor=pointer]
+      - generic [ref=e39]:
+        - button "All" [ref=e40] [cursor=pointer]
+        - button "Running" [ref=e41] [cursor=pointer]
+        - button "Work" [ref=e42] [cursor=pointer]
+        - button "Personal" [ref=e43] [cursor=pointer]
+        - button "Done" [ref=e44] [cursor=pointer]
+        - button "Error" [ref=e45] [cursor=pointer]
+        - textbox "Search…" [ref=e46]
+    - generic [ref=e48]:
+      - img [ref=e50]
+      - generic [ref=e52]: No agents yet. Start one above.
+  - generic [ref=e53]:
+    - generic [ref=e54]: Activity
+    - generic [ref=e56]: Tool calls will appear here

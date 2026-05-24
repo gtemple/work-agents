@@ -404,6 +404,59 @@ DECLARATIONS = [
             'required': ['summary', 'files_to_change', 'steps'],
         },
     },
+    {
+        'name': 'start_process',
+        'description': (
+            'Start a long-running background process (e.g. a web app, API server, or dev server). '
+            'The process runs independently and persists beyond this conversation turn. '
+            'It will appear in the dashboard with a link and a stop button.'
+        ),
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'label': {
+                    'type': 'string',
+                    'description': 'Human-readable name for this process, e.g. "Flask app" or "Vite dev server"',
+                },
+                'command': {
+                    'type': 'string',
+                    'description': 'Shell command to run, e.g. "python app.py" or "npm run dev"',
+                },
+                'port': {
+                    'type': 'integer',
+                    'description': 'Port the process listens on — used to generate a clickable URL in the dashboard',
+                },
+                'cwd': {
+                    'type': 'string',
+                    'description': 'Working directory relative to session dir (e.g. "my-app/"). Defaults to session root.',
+                },
+            },
+            'required': ['label', 'command'],
+        },
+    },
+    {
+        'name': 'stop_process',
+        'description': 'Stop a running background process by its dashboard ID.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'process_id': {
+                    'type': 'integer',
+                    'description': 'Process ID as shown by list_processes',
+                },
+            },
+            'required': ['process_id'],
+        },
+    },
+    {
+        'name': 'list_processes',
+        'description': 'List all background processes (running, stopped, or crashed) for the current session.',
+        'parameters': {
+            'type': 'object',
+            'properties': {},
+            'required': [],
+        },
+    },
 ]
 
 
@@ -643,6 +696,82 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         for t in tasks:
             msg_count = t.messages.count()
             lines.append(f'- **{t.title}** ({msg_count} message{"s" if msg_count != 1 else ""}) — id: {t.id}')
+        return '\n'.join(lines)
+
+    elif tool_name == 'start_process':
+        import subprocess
+        from .models import Process as ProcessModel, GlobalEvent
+        label = args['label']
+        command = args['command']
+        port = args.get('port')
+        cwd_rel = args.get('cwd', '')
+        work_dir = (session_dir / cwd_rel) if cwd_rel else session_dir
+        work_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            proc = subprocess.Popen(
+                command, shell=True, cwd=str(work_dir),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                start_new_session=True,
+            )
+        except Exception as e:
+            return f'Failed to start process: {e}'
+        db_proc = ProcessModel.objects.create(
+            session=session, label=label, command=command, port=port, pid=proc.pid, status='running',
+        )
+        if session:
+            try:
+                GlobalEvent.objects.create(
+                    session=session, event_type='process_started',
+                    data={'process_id': db_proc.id, 'label': label, 'port': port, 'pid': proc.pid},
+                )
+            except Exception:
+                pass
+        url_str = f' — available on port {port}' if port else ''
+        return f'Started "{label}" (PID {proc.pid}, process_id {db_proc.id}){url_str}'
+
+    elif tool_name == 'stop_process':
+        import signal as _signal, os as _os
+        from django.utils import timezone
+        from .models import Process as ProcessModel, GlobalEvent
+        process_id = int(args['process_id'])
+        try:
+            db_proc = ProcessModel.objects.get(id=process_id)
+        except ProcessModel.DoesNotExist:
+            return f'Process {process_id} not found.'
+        if db_proc.pid:
+            try:
+                _os.killpg(_os.getpgid(db_proc.pid), _signal.SIGTERM)
+            except (ProcessLookupError, OSError):
+                pass
+        db_proc.status = 'stopped'
+        db_proc.stopped_at = timezone.now()
+        db_proc.save()
+        if session:
+            try:
+                GlobalEvent.objects.create(
+                    session=session, event_type='process_stopped',
+                    data={'process_id': db_proc.id, 'label': db_proc.label},
+                )
+            except Exception:
+                pass
+        return f'Stopped "{db_proc.label}".'
+
+    elif tool_name == 'list_processes':
+        import os as _os
+        from .models import Process as ProcessModel
+        qs = ProcessModel.objects.filter(session=session).order_by('-started_at')[:20] if session else ProcessModel.objects.order_by('-started_at')[:20]
+        if not qs.exists():
+            return 'No processes.'
+        lines = []
+        for p in qs:
+            if p.status == 'running' and p.pid:
+                try:
+                    _os.kill(p.pid, 0)
+                except (ProcessLookupError, OSError):
+                    p.status = 'crashed'
+                    p.save(update_fields=['status'])
+            url_str = f' — port {p.port}' if p.port else ''
+            lines.append(f'[id={p.id}] {p.label} ({p.status}){url_str} | PID {p.pid} | {p.command}')
         return '\n'.join(lines)
 
     elif tool_name == 'submit_plan':

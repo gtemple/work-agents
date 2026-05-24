@@ -3,6 +3,7 @@ import {
   createSession, listSessions, getSession, streamAgent, updateSession,
   approveAction, getEvents, getSessionEvents,
   listActionItems, actionItemAct,
+  listProcesses,
 } from './api';
 import LeftRail from './components/LeftRail';
 import TriageQueue from './components/TriageQueue';
@@ -11,6 +12,7 @@ import BottomLog from './components/BottomLog';
 import ChatView from './components/ChatView';
 import Toast from './components/Toast';
 import WorkspacePanel from './components/WorkspacePanel';
+import ProcessesBar from './components/ProcessesBar';
 import { estimateCost, argsSummary } from './utils';
 import './index.css';
 
@@ -121,6 +123,7 @@ export default function App() {
   const [sessions, setSessions]       = useState([]);
   const [feed, setFeed]               = useState([]);
   const [triageItems, setTriageItems] = useState([]);
+  const [processes, setProcesses]     = useState([]);
   const [toasts, setToasts]           = useState([]);
   const [now, setNow]                 = useState(Date.now());
 
@@ -159,6 +162,9 @@ export default function App() {
     });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
   }, []);
+
+  const refreshProcesses = useCallback(() =>
+    listProcesses().then(({ processes: list }) => setProcesses(list ?? [])), []);
 
   // event polling
   useEffect(() => {
@@ -210,6 +216,10 @@ export default function App() {
             });
           }
 
+          if (ev.event_type === 'process_started' || ev.event_type === 'process_stopped') {
+            refreshProcesses();
+          }
+
           if (ev.event_type === 'task_spawned') {
             listSessions().then(({ sessions: list }) => {
               setSessions(prev => list.map((s, i) => {
@@ -223,7 +233,14 @@ export default function App() {
       } catch (_) {}
     }, 3000);
     return () => clearInterval(id);
-  }, []);
+  }, [refreshProcesses]);
+
+  // processes polling
+  useEffect(() => {
+    refreshProcesses();
+    const id = setInterval(refreshProcesses, 5000);
+    return () => clearInterval(id);
+  }, [refreshProcesses]);
 
   // toast auto-dismiss
   const dismissToast = useCallback(id => setToasts(prev => prev.filter(t => t.id !== id)), []);
@@ -488,6 +505,7 @@ export default function App() {
         </div>
 
         <div className="main-scroll">
+          <ProcessesBar processes={processes} onRefresh={refreshProcesses} />
           {visibleTriage.length > 0 && (
             <>
               <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setTriageOpen(o => !o)}>

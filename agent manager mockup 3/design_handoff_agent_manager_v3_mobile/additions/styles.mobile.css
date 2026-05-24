@@ -1,0 +1,251 @@
+/* Append these rules to the existing <style> block in Agent Manager.html
+   (place just before the existing "help overlay" section so the cascade lines up).
+
+   ALSO add this single default rule somewhere in the desktop styles
+   (anywhere inside the .title block — keeps the hamburger hidden at
+   desktop widths until the @media query reveals it):
+
+       .title .hamb { display: none; }
+*/
+
+/* ── mobile / narrow viewports ─────────────────────────────────────────── */
+@media (max-width: 720px) {
+  body { font-size: 13px; }
+
+  /* App shell: single column. Rail and log hidden by default; rail re-appears
+     as an overlay drawer when [data-mobile-drawer="1"]. */
+  .app {
+    grid-template-rows: 44px 1fr 32px !important;
+    grid-template-columns: 1fr !important;
+    grid-template-areas: "title" "main" "stat" !important;
+  }
+  .app[data-layout="split"] { grid-template-areas: "title" "main" "stat" !important; }
+  .rail { display: none; }
+  .log  { display: none; }
+  .side { display: none; }
+
+  .app[data-mobile-drawer="1"] .rail {
+    display: flex;
+    position: fixed; top: 44px; bottom: 32px; left: 0;
+    width: min(86vw, 320px);
+    z-index: 200;
+    box-shadow: 0 0 24px rgba(0,0,0,.6);
+    animation: drawer-in .2s cubic-bezier(.3,.7,.4,1);
+  }
+  @keyframes drawer-in {
+    from { transform: translateX(-100%); }
+    to   { transform: translateX(0); }
+  }
+  .mobile-backdrop {
+    position: fixed; top: 44px; bottom: 32px; left: 0; right: 0;
+    background: rgba(0,0,0,.55);
+    z-index: 199;
+    -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px);
+  }
+
+  /* Title bar with hamburger */
+  .title { height: 44px; padding: 0 8px; gap: 8px; }
+  .title .dots, .title .crumb .sep, .title .crumb b { display: none; }
+  .title .crumb { font-size: 13px; color: var(--fg); }
+  .title .crumb span:last-child { color: var(--fg); font-weight: 500; }
+  .title .meta { font-size: 10.5px; gap: 8px; }
+  .title .meta span:nth-child(n+3) { display: none; }
+  .title .hamb {
+    display: inline-flex; align-items: center; justify-content: center;
+    width: 32px; height: 32px;
+    background: transparent; border: 1px solid var(--line);
+    color: var(--fg-2); border-radius: var(--r);
+    font: inherit; cursor: pointer; padding: 0;
+  }
+  .title .hamb:hover { color: var(--accent); border-color: var(--accent); }
+
+  /* Tabs: horizontal scroll, compact */
+  .tabs {
+    padding: 0 8px; height: 40px;
+    overflow-x: auto; overflow-y: hidden;
+    flex-wrap: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tabs .tab { padding: 0 10px; flex-shrink: 0; font-size: 12px; }
+  .tabs .right { position: absolute; right: 4px; top: 4px; gap: 4px; }
+  .tabs .right > span:first-child { display: none; } /* saved 4 */
+  .tabs .right .btn { height: 26px; padding: 0 8px; font-size: 11px; }
+  .tabs .right .btn .k { display: none; }
+
+  /* Filter bar: hide on mobile (sources + sort) — collapses behind tabs */
+  .filterbar { display: none; }
+
+  /* Section headers: smaller */
+  .sect { padding: 12px 14px 6px; font-size: 10px; }
+  .sect .hint { display: none; }
+
+  /* Triage queue: stack columns vertically */
+  .queue-row {
+    grid-template-columns: 28px 1fr !important;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "num meta"
+      "num body"
+      "act act";
+    column-gap: 0;
+  }
+  .qr-num   { grid-area: num; }
+  .qr-meta  { grid-area: meta; border-right: 0; padding: 10px 12px 4px;
+              flex-direction: row; gap: 10px; align-items: center; }
+  .qr-meta .src { display: none; }
+  .qr-body  { grid-area: body; padding: 0 12px 10px; }
+  .qr-body .desc { font-size: 12px; }
+  .qr-actions {
+    grid-area: act;
+    border-left: 0; border-top: 1px dashed var(--line);
+    padding: 8px 12px;
+    background: var(--bg-2);
+    display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 6px;
+  }
+  .qr-btn { height: 38px; justify-content: center; font-size: 12px; }
+  .qr-btn .k { width: 16px; height: 16px; }
+
+  /* Sessions list: collapse columns to status + title + when */
+  .sess-head { display: none; }
+  .sess-row {
+    grid-template-columns: 18px 1fr auto !important;
+    gap: 10px;
+    padding: 12px 14px;
+    font-size: 12px;
+  }
+  .sess-row > span:nth-child(3),
+  .sess-row > span:nth-child(4),
+  .sess-row > span:nth-child(5) { display: none; }
+  .sess-row .title { flex-wrap: wrap; row-gap: 4px; }
+  .sess-row .title .t { white-space: normal; line-height: 1.4; }
+  .sess-row .needs-pill { font-size: 10px; padding: 2px 6px; }
+
+  /* Status bar: keep essentials only */
+  .stat { height: 32px; font-size: 11px; gap: 10px; padding: 0 8px; }
+  .stat > .seg:nth-of-type(n+3):nth-of-type(-n+6) { display: none; }
+  .stat .right { gap: 8px; }
+  .stat .right > .seg:nth-of-type(n+2):nth-of-type(-n+4) { display: none; }
+
+  /* Chat view: trim padding, simplify header */
+  .chat-head { padding: 0 10px; gap: 8px; }
+  .chat-head .ti { font-size: 12.5px; max-width: 60%; }
+  .chat-head .meta .br,
+  .chat-head .meta span:nth-child(n+2) { display: none; }
+  .chat-head .right .btn:not(.x) { display: none; }
+  .chat-row { grid-template-columns: 16px 1fr; gap: 8px; padding: 6px 14px; }
+  .chat-row .ts { display: none; }
+  .chat-row.tool .msg { flex-wrap: wrap; }
+  .chat-row.diff .msg { max-width: 100%; }
+  .chat-row.question .q-opts button { flex: 1; }
+  .chat-foot { padding: 8px 10px; }
+  .chat-foot .hint .seg:nth-child(n+3) { display: none; }
+  .chat-input .send .k { display: none; }
+
+  /* Workspace panel: tabs scroll, side-nav becomes top sub-tabs */
+  .ws-head { padding: 0 6px; overflow-x: auto; }
+  .ws-head::-webkit-scrollbar { display: none; }
+  .ws-head .wtab { padding: 0 10px; font-size: 12px; flex-shrink: 0; }
+  .ws-body { flex-direction: column; }
+  .ws-sidenav {
+    width: 100%; flex-direction: row; padding: 0;
+    border-right: 0; border-bottom: 1px solid var(--line);
+    overflow-x: auto;
+  }
+  .ws-sidenav::-webkit-scrollbar { display: none; }
+  .ws-sidenav .sn-h { display: none; }
+  .ws-sidenav .sn-item {
+    padding: 10px 14px; flex-shrink: 0;
+    border-left: 0; border-bottom: 2px solid transparent;
+  }
+  .ws-sidenav .sn-item[data-on="1"] {
+    border-left: 0; border-bottom-color: var(--accent);
+  }
+  .ws-sidenav .sn-item .n { margin-left: 4px; }
+
+  /* Memory pane / editor */
+  .pane-head { padding: 12px 14px 8px; flex-direction: column; align-items: flex-start; gap: 4px; }
+  .pane-head .sub { margin-left: 0; }
+  .mem-editor { margin: 10px 14px; }
+  .mem-editor .me-body { grid-template-columns: 28px 1fr; }
+  .mem-editor .me-text { font-size: 11.5px; tab-size: 2; }
+  .mem-editor .me-gutter { font-size: 11px; }
+  .mem-list, .mem-add { margin: 0 14px; }
+  .mem-row {
+    grid-template-columns: 18px 1fr auto !important;
+    gap: 10px;
+    padding: 12px 4px;
+  }
+  .mem-row > :nth-child(3),
+  .mem-row > :nth-child(4),
+  .mem-row > :nth-child(5) { display: none; }
+  .mem-row .nm .sub { color: var(--fg-4); font-size: 10px; }
+
+  /* Schedules */
+  .sched-new {
+    margin: 10px 14px;
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .sched-new > .lbl { display: none; }
+  .sched-new .prompt-row { grid-template-columns: 1fr; }
+  .sched-new .prompt-row > span { display: none; }
+  .sched-table { margin: 0 14px; }
+  .sched-head { display: none; }
+  .sched-row {
+    grid-template-columns: 20px 1fr auto;
+    grid-template-areas: "tog nm act" "tog prm prm" "tog meta meta";
+    gap: 6px 10px;
+    padding: 12px 4px;
+  }
+  .sched-row > .tog  { grid-area: tog; align-self: start; margin-top: 2px; }
+  .sched-row > :nth-child(2) { grid-area: nm; }
+  .sched-row > .prm { grid-area: prm; -webkit-line-clamp: 3; }
+  .sched-row > .last,
+  .sched-row > .next {
+    grid-area: meta;
+    display: inline-flex; gap: 12px; align-items: baseline;
+    padding-top: 4px;
+  }
+  .sched-row > .next { display: none; } /* keep last only on mobile */
+  .sched-row > .act { grid-area: act; align-self: start; }
+
+  /* Stats */
+  .stats-strip {
+    grid-template-columns: repeat(2, 1fr);
+    margin: 0 14px;
+  }
+  .stats-strip .cell .val { font-size: 18px; }
+  .stats-section { margin: 18px 14px 0; }
+  .spark { height: 60px; padding: 6px 6px 0; }
+  .spark .col { min-width: 5px; }
+  .heat { overflow-x: scroll; }
+  .heat .grid { min-width: 600px; }
+  .bd-row { grid-template-columns: 80px 1fr 50px 40px; gap: 8px; font-size: 11px; }
+  .top-tbl .row {
+    grid-template-columns: 28px 1fr 70px;
+    grid-template-areas: "rnk ti tok" "rnk meta tok";
+    gap: 6px 10px;
+    padding: 10px 12px;
+  }
+  .top-tbl .row > :nth-child(1) { grid-area: rnk; align-self: center; }
+  .top-tbl .row > .ref { grid-area: meta; font-size: 10px; }
+  .top-tbl .row > .ti  { grid-area: ti; white-space: normal; line-height: 1.3; }
+  .top-tbl .row > .tok { grid-area: tok; align-self: center; }
+  .top-tbl .row > .cost { display: none; }
+
+  /* Help overlay */
+  .help .panel { min-width: 0; width: calc(100vw - 32px); padding: 16px 18px; }
+
+  /* Tweaks panel: smaller on mobile so it doesn't dominate */
+  .twk-panel { width: calc(100vw - 32px) !important; max-width: 320px; }
+}
+
+/* Very narrow phones (<= 380px) */
+@media (max-width: 380px) {
+  .stats-strip { grid-template-columns: 1fr; }
+  .tabs .right .btn { padding: 0 6px; }
+  .tabs .right .btn:not(.primary) { display: none; }  /* hide refresh */
+}
+

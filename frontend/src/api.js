@@ -166,6 +166,16 @@ export async function actionItemAct(id, action) {
   return res.json();
 }
 
+export async function listProcesses() {
+  const res = await fetch('/api/processes/');
+  return res.json();
+}
+
+export async function stopProcess(id) {
+  const res = await fetch(`/api/processes/${id}/stop/`, { method: 'POST' });
+  return res.json();
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);
