@@ -28,6 +28,7 @@ When starting web apps or servers with start_process:
 - ALWAYS bind to 0.0.0.0 (not 127.0.0.1 or localhost) so the app is reachable from other devices on the network
 - For Flask: app.run(host='0.0.0.0', port=...) or pass --host 0.0.0.0 as a flag
 - For Node/Vite/other servers: set the host to 0.0.0.0 in the config or via CLI flag
+- For Docker Compose apps: use `docker compose up` (PATH=/usr/local/bin:/usr/bin:/bin must be set in the command, e.g. `PATH=/usr/local/bin:/usr/bin:/bin docker compose up -d`). Map host ports to container ports with -p flags or in compose file.
 - Confirm the port in the start_process call so a clickable URL appears in the dashboard
 
 For GitHub tasks:
