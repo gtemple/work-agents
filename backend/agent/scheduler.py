@@ -35,8 +35,7 @@ def _generate_daily_digest(date_str: str):
         step_count = AgentStep.objects.filter(message__session=s).count()
         tag = 'work' if s.is_work else 'personal'
         title = s.title or 'Untitled'
-        status = 'error' if s.error else 'done'
-        lines.append(f"- [{tag}] {title} — {step_count} steps, {status}")
+        lines.append(f"- [{tag}] {title} — {step_count} steps")
 
     session_summary = '\n'.join(lines)
 
