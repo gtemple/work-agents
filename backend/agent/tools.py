@@ -524,21 +524,25 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
 
         context = gh.get_repo_context(clone_dir)
 
-        # Auto-provision env files for known repos
+        # Auto-provision env files and secrets for known repos
         import shutil
-        ENV_FILES = {
-            'purposely/purposely-web': (
-                Path.home() / '.work-envs' / 'purposely-backend.env',
-                clone_dir / 'backend' / '.env',
-            ),
-        }
         env_note = ''
-        if slug in ENV_FILES:
-            src, dst = ENV_FILES[slug]
-            if src.exists() and not dst.exists():
-                dst.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copy2(src, dst)
-                env_note = '\nEnv file auto-copied to backend/.env — remember to fix DATABASE_URL host if using Docker Compose.'
+        if slug == 'purposely/purposely-web':
+            env_src = Path.home() / '.work-envs' / 'purposely-backend.env'
+            env_dst = clone_dir / 'backend' / '.env'
+            if env_src.exists() and not env_dst.exists():
+                env_dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(env_src, env_dst)
+                env_note += '\nEnv file auto-copied to backend/.env — DATABASE_URL host already set to db for Docker Compose.'
+            secrets_src = Path.home() / '.work-envs' / 'purposely-secrets'
+            secrets_dst = clone_dir / 'dev_setup' / 'secrets'
+            if secrets_src.exists():
+                secrets_dst.mkdir(parents=True, exist_ok=True)
+                for secret_file in secrets_src.iterdir():
+                    dst_file = secrets_dst / secret_file.name
+                    if not dst_file.exists():
+                        shutil.copy2(secret_file, dst_file)
+                env_note += '\nCloudflare tunnel secrets auto-copied to dev_setup/secrets/.'
 
         return f'Cloned {slug} into {clone_dir.name}/ ({source})\n\n{context}{env_note}'
 

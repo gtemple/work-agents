@@ -194,6 +194,7 @@ class Process(models.Model):
     command = models.TextField()
     cwd = models.TextField(blank=True)
     port = models.IntegerField(null=True, blank=True)
+    scheme = models.CharField(max_length=8, default='http')
     pid = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='running')
     started_at = models.DateTimeField(auto_now_add=True)

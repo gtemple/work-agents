@@ -627,6 +627,7 @@ def _process_dict(p):
         'command': p.command,
         'cwd': p.cwd,
         'port': p.port,
+        'scheme': p.scheme,
         'pid': p.pid,
         'status': p.status,
         'started_at': p.started_at.isoformat(),

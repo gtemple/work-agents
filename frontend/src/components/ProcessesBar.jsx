@@ -19,7 +19,7 @@ export default function ProcessesBar({ processes, onRefresh }) {
         <span className="proc-label">processes</span>
         <div className="proc-list">
           {processes.map(p => {
-            const url = p.port ? `http://${window.location.hostname}:${p.port}` : null;
+            const url = p.port ? `${p.scheme || 'http'}://${window.location.hostname}:${p.port}` : null;
             return (
               <div key={p.id} className={`proc-item${p.status !== 'running' ? ' dim' : ''}`}>
                 <span className="proc-dot" style={{ background: STATUS_COLOR[p.status] || 'var(--fg-4)' }} />
@@ -56,7 +56,7 @@ export default function ProcessesBar({ processes, onRefresh }) {
             </thead>
             <tbody>
               {processes.map(p => {
-                const url = p.port ? `http://${window.location.hostname}:${p.port}` : null;
+                const url = p.port ? `${p.scheme || 'http'}://${window.location.hostname}:${p.port}` : null;
                 return (
                   <tr key={p.id} className={p.status !== 'running' ? 'dim' : ''}>
                     <td>
