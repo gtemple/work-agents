@@ -528,6 +528,10 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         import shutil
         env_note = ''
         if slug == 'purposely/purposely-web':
+            # Mark session as work so it appears under Work in the sidebar
+            if session:
+                from .models import Session as _Session
+                _Session.objects.filter(pk=session.pk).update(is_work=True)
             env_src = Path.home() / '.work-envs' / 'purposely-backend.env'
             env_dst = clone_dir / 'backend' / '.env'
             if env_src.exists() and not env_dst.exists():
