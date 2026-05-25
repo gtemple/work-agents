@@ -243,6 +243,7 @@ body::before {
 .qr-meta .scope .d { width: 6px; height: 6px; border-radius: 50%; }
 .qr-meta .scope.work .d { background: var(--info); }
 .qr-meta .scope.personal .d { background: var(--personal); }
+.qr-meta .scope.repo .d { background: #34d399; }
 .qr-meta .src { color: var(--fg-4); font-size: 10px; }
 .qr-meta .ctx { color: var(--fg-3); font-size: 10px; margin-top: 1px; }
 .qr-body { padding: 10px 14px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
