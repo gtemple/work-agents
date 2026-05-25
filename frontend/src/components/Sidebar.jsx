@@ -35,6 +35,8 @@ function SessionRow({ s, activeId, onSelect, now }) {
   const isActive = s.id === activeId;
   const badge = s.linear_task_type && TASK_TYPE_BADGE[s.linear_task_type];
   const isRunning = s.status === 'running';
+  const totalTokens = (s.inputTokens || 0) + (s.outputTokens || 0);
+  const tokenWarning = totalTokens >= 800_000 ? '#f87171' : totalTokens >= 500_000 ? '#fbbf24' : null;
   return (
     <button
       onClick={() => onSelect(s.id)}
@@ -57,6 +59,10 @@ function SessionRow({ s, activeId, onSelect, now }) {
           <span style={{ fontSize: 13, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>
             {s.linear_issue_key ? (s.title || '').replace(/^[A-Z]+-\d+:\s*/, '') : (s.title || 'New agent')}
           </span>
+          {tokenWarning && (
+            <span style={{ width: 6, height: 6, borderRadius: '50%', background: tokenWarning, flexShrink: 0 }}
+              title={`${formatTokens(totalTokens)} tokens — approaching context limit`} />
+          )}
         </div>
         {(isRunning || s.stepCount > 0 || badge || s.pendingApproval || s.hasPendingPlan) && (
           <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginTop: 2 }}>

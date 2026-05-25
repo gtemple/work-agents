@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+import shutil
 import threading
 import time
 from pathlib import Path
@@ -52,7 +53,10 @@ def delete_session(request, session_id):
         session = Session.objects.get(id=session_id)
     except Session.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
+    session_dir = Path(settings.MEDIA_ROOT) / 'sessions' / str(session_id)
     session.delete()
+    if session_dir.exists():
+        shutil.rmtree(session_dir, ignore_errors=True)
     return JsonResponse({'ok': True})
 
 
@@ -332,11 +336,17 @@ def list_memories(request):
 
 
 @csrf_exempt
-@require_http_methods(['POST', 'DELETE'])
+@require_http_methods(['GET', 'POST', 'DELETE'])
 def memory_detail(request, key):
     if request.method == 'DELETE':
         Memory.objects.filter(key=key).delete()
         return JsonResponse({'ok': True})
+    if request.method == 'GET':
+        try:
+            obj = Memory.objects.get(key=key)
+            return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})
+        except Memory.DoesNotExist:
+            return JsonResponse({'error': 'Not found'}, status=404)
     data = json.loads(request.body or '{}')
     obj, _ = Memory.objects.update_or_create(key=key, defaults={'value': data.get('value', '')})
     return JsonResponse({'key': obj.key, 'value': obj.value, 'updated_at': obj.updated_at.isoformat()})

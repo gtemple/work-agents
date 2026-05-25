@@ -50,9 +50,9 @@ function Row({ session, onSelect, now }) {
   const cost = (session.inputTokens || session.outputTokens)
     ? formatCost(estimateCost(session.inputTokens || 0, session.outputTokens || 0))
     : null;
-  const tokens = (session.inputTokens || session.outputTokens)
-    ? formatTokens((session.inputTokens || 0) + (session.outputTokens || 0))
-    : null;
+  const totalTokens = (session.inputTokens || 0) + (session.outputTokens || 0);
+  const tokens = totalTokens ? formatTokens(totalTokens) : null;
+  const tokenColor = totalTokens >= 800_000 ? '#f87171' : totalTokens >= 500_000 ? '#fbbf24' : '#334155';
 
   const displayTitle = session.linear_issue_key
     ? (session.title || '').replace(/^[A-Z]+-\d+:\s*/, '')
@@ -136,7 +136,7 @@ function Row({ session, onSelect, now }) {
       {/* Tokens + cost */}
       <td style={{ padding: '11px 16px', width: 130, textAlign: 'right' }}>
         {tokens && (
-          <span style={{ fontSize: 11, color: '#334155', fontVariantNumeric: 'tabular-nums' }}
+          <span style={{ fontSize: 11, color: tokenColor, fontVariantNumeric: 'tabular-nums' }}
             title={`${formatTokens(session.inputTokens || 0)} in / ${formatTokens(session.outputTokens || 0)} out`}>
             {tokens} · {cost}
           </span>

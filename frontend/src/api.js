@@ -56,6 +56,13 @@ export async function listMemories() {
   return res.json();
 }
 
+export async function getDigest() {
+  const res = await fetch('/api/memory/daily_digest/');
+  if (!res.ok) return null;
+  const data = await res.json();
+  try { return JSON.parse(data.value); } catch { return null; }
+}
+
 export async function writeMemory(key, value) {
   const res = await fetch(`/api/memory/${encodeURIComponent(key)}/`, {
     method: 'POST',

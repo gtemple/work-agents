@@ -3,7 +3,7 @@ import {
   createSession, listSessions, getSession, streamAgent, updateSession,
   approveAction, getEvents, getSessionEvents, getRecentEvents,
   listActionItems, actionItemAct,
-  listProcesses, deleteSession,
+  listProcesses, deleteSession, getDigest,
 } from './api';
 import LeftRail from './components/LeftRail';
 import TriageQueue from './components/TriageQueue';
@@ -13,6 +13,7 @@ import ChatView from './components/ChatView';
 import Toast from './components/Toast';
 import WorkspacePanel from './components/WorkspacePanel';
 import ProcessesBar from './components/ProcessesBar';
+import ReactMarkdown from 'react-markdown';
 import { estimateCost, argsSummary } from './utils';
 import './index.css';
 
@@ -137,6 +138,8 @@ export default function App() {
   const [helpOpen, setHelpOpen]       = useState(false);
   const [triageOpen, setTriageOpen]       = useState(true);
   const [sessionsOpen, setSessionsOpen]   = useState(true);
+  const [digest, setDigest]               = useState(null);
+  const [digestOpen, setDigestOpen]       = useState(false);
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
@@ -163,6 +166,7 @@ export default function App() {
       setSessions(list.map(makeSessionState));
     });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
+    getDigest().then(d => d && setDigest(d));
     getRecentEvents(80).then(({ events }) => {
       if (!events?.length) return;
       const lines = events.flatMap(e => {
@@ -569,6 +573,20 @@ export default function App() {
 
         <div className="main-scroll">
           <ProcessesBar processes={processes} onRefresh={refreshProcesses} />
+          {digest && (
+            <>
+              <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setDigestOpen(o => !o)}>
+                <b>digest</b>
+                <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>{digest.date}</span>
+                <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{digestOpen ? '▾' : '▸'}</span>
+              </div>
+              {digestOpen && (
+                <div className="digest-body">
+                  <ReactMarkdown>{digest.content}</ReactMarkdown>
+                </div>
+              )}
+            </>
+          )}
           {visibleTriage.length > 0 && (
             <>
               <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setTriageOpen(o => !o)}>
