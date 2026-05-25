@@ -141,7 +141,7 @@ class ActionItem(models.Model):
         ('saved', 'Saved'),         # user saved for later
         ('dismissed', 'Dismissed'), # user said no
     ]
-    TYPE_CHOICES = [('work', 'Work'), ('personal', 'Personal')]
+    TYPE_CHOICES = [('work', 'Work'), ('personal', 'Personal'), ('repo', 'Repo')]
 
     title = models.CharField(max_length=255)
     description = models.TextField()

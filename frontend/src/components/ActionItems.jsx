@@ -5,6 +5,7 @@ import { CATEGORY_ICONS, Wrench, ArrowsClockwise, CaretDown } from './Icons';
 const TYPE_COLOR = {
   work:     '#3b82f6',
   personal: '#a78bfa',
+  repo:     '#34d399',
 };
 
 function ItemCard({ item, onAct, navigating }) {
@@ -152,6 +153,7 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
 
   const work     = active.filter(i => i.type === 'work');
   const personal = active.filter(i => i.type === 'personal');
+  const repo     = active.filter(i => i.type === 'repo');
   const hasItems = active.length > 0 || saved.length > 0;
 
   if (loading) return null;
@@ -221,10 +223,22 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
 
           {/* Personal row */}
           {personal.length > 0 && (
-            <div>
+            <div style={{ marginBottom: 8 }}>
               <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Personal</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {personal.map(item => (
+                  <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Repos row */}
+          {repo.length > 0 && (
+            <div style={{ marginBottom: 8 }}>
+              <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Repos</div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
+                {repo.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
                 ))}
               </div>
