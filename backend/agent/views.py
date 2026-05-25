@@ -622,15 +622,49 @@ def action_item_act(request, item_id, action):
         threading.Thread(target=_refill, daemon=True).start()
 
     elif action == 'investigate':
+        from .models import RepoMemory, UserContext
+
+        # Build an enriched system prompt with relevant context
+        ctx_parts = [f'**{item.title}**\n\n{item.description}']
+        if item.repo:
+            try:
+                rm = RepoMemory.objects.get(repo=item.repo)
+                if rm.content.strip():
+                    ctx_parts.append(f'## Repo knowledge: {item.repo}\n{rm.content}')
+            except RepoMemory.DoesNotExist:
+                pass
+        user_ctx = UserContext.get()
+        if user_ctx.content.strip():
+            ctx_parts.append(f'## About the user\n{user_ctx.content}')
+
         session = Session.objects.create(
             title=item.title,
-            system_prompt=f'{item.title}\n\n{item.description}',
+            system_prompt='\n\n'.join(ctx_parts),
             is_work=(item.type == 'work'),
         )
         item.session = session
-        item.status = 'saved'  # keep it accessible in saved list
+        item.status = 'saved'
         item.save(update_fields=['session', 'status'])
         threading.Thread(target=_refill, daemon=True).start()
+
+        initial_prompt = (
+            f'Investigate this idea: {item.title}\n\n'
+            f'{item.description}\n\n'
+            f'Explore it thoroughly — look at relevant code or repos if needed. '
+            f'Share your findings and suggest concrete next steps.'
+        )
+
+        def _run_investigate():
+            import django.db
+            try:
+                for _ in agent_loop.run(session, initial_prompt):
+                    pass
+            except Exception:
+                pass
+            finally:
+                django.db.close_old_connections()
+
+        threading.Thread(target=_run_investigate, daemon=True).start()
         return JsonResponse({'session_id': str(session.id)})
 
     elif action == 'refresh':
