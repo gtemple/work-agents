@@ -212,7 +212,10 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
           {/* Work row */}
           {work.length > 0 && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Work</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: TYPE_COLOR.work, flexShrink: 0 }} />
+                <span style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Work</span>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {work.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
@@ -224,7 +227,10 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
           {/* Personal row */}
           {personal.length > 0 && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Personal</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: TYPE_COLOR.personal, flexShrink: 0 }} />
+                <span style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Personal</span>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {personal.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
@@ -236,7 +242,10 @@ export default function ActionItems({ onNavigate, onSessionsChanged }) {
           {/* Repos row */}
           {repo.length > 0 && (
             <div style={{ marginBottom: 8 }}>
-              <div style={{ fontSize: 9, color: '#334155', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Repos</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, marginBottom: 6 }}>
+                <span style={{ width: 6, height: 6, borderRadius: '50%', background: TYPE_COLOR.repo, flexShrink: 0 }} />
+                <span style={{ fontSize: 9, color: '#475569', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Repos</span>
+              </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 8 }}>
                 {repo.map(item => (
                   <ItemCard key={item.id} item={item} onAct={handleAct} navigating={navigatingId === item.id} />
