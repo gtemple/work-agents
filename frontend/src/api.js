@@ -190,6 +190,10 @@ export async function restartProcess(id) {
   return res.json();
 }
 
+export async function deleteProcess(id) {
+  await fetch(`/api/processes/${id}/`, { method: 'DELETE' });
+}
+
 export function streamAgent(sessionId, prompt, onEvent) {
   const url = `/api/sessions/${sessionId}/stream/?prompt=${encodeURIComponent(prompt)}`;
   const es = new EventSource(url);

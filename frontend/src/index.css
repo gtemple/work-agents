@@ -491,9 +491,10 @@ body::before {
 @keyframes blink { 50% { opacity: 0; } }
 
 /* ── processes bar ──────────────────────────────────────────────────────── */
+.proc-bar-wrap { border-bottom: 1px solid var(--line); }
 .proc-bar {
   display: flex; align-items: center; gap: 12px;
-  padding: 6px 16px; border-bottom: 1px solid var(--line);
+  padding: 6px 16px;
   background: rgba(100,210,140,.04);
   font-size: 11px;
 }
@@ -501,7 +502,7 @@ body::before {
   color: var(--fg-4); letter-spacing: .1em; text-transform: uppercase; font-size: 10px;
   flex-shrink: 0;
 }
-.proc-list { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.proc-list { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; flex: 1; }
 .proc-item {
   display: flex; align-items: center; gap: 6px;
   padding: 3px 8px; border-radius: var(--r);
@@ -520,6 +521,47 @@ body::before {
 }
 .proc-stop:hover { color: var(--err); }
 .proc-restart:hover { color: var(--ok); }
+.proc-expand {
+  background: none; border: none; cursor: pointer;
+  color: var(--fg-4); font-size: 11px; padding: 0 2px; line-height: 1;
+  flex-shrink: 0; margin-left: auto;
+}
+.proc-expand:hover { color: var(--fg-2); }
+
+.proc-detail {
+  background: var(--bg-1); padding: 8px 16px 12px;
+  border-top: 1px solid var(--line);
+}
+.proc-table {
+  width: 100%; border-collapse: collapse; font-size: 11px;
+}
+.proc-table th {
+  color: var(--fg-4); font-weight: 400; text-align: left;
+  padding: 4px 8px 4px 0; letter-spacing: .06em; font-size: 10px; text-transform: uppercase;
+  border-bottom: 1px solid var(--line);
+}
+.proc-table td {
+  padding: 5px 8px 5px 0; color: var(--fg-2); vertical-align: middle;
+}
+.proc-table tr.dim td { opacity: .45; }
+.proc-status-text { margin-left: 5px; color: var(--fg-4); }
+.proc-d-name { font-weight: 500; color: var(--fg-1); }
+.proc-d-cmd { font-family: monospace; color: var(--fg-3); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.proc-d-when { color: var(--fg-4); white-space: nowrap; }
+.proc-d-actions { display: flex; gap: 6px; align-items: center; white-space: nowrap; }
+.proc-del {
+  background: none; border: none; cursor: pointer;
+  color: var(--fg-4); font-size: 12px; padding: 0; line-height: 1;
+}
+.proc-del:hover { color: var(--err); }
+.proc-del-confirm {
+  background: none; border: 1px solid var(--err); border-radius: var(--r);
+  color: var(--err); font-size: 10px; padding: 1px 6px; cursor: pointer;
+}
+.proc-del-cancel {
+  background: none; border: none; color: var(--fg-4); font-size: 10px; cursor: pointer; padding: 0;
+}
+.proc-del-cancel:hover { color: var(--fg-2); }
 
 /* ── workspace overlay (memory / schedules / stats) ────────────────────── */
 .ws {

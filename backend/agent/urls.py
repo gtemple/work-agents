@@ -27,4 +27,5 @@ urlpatterns = [
     path('processes/', views.list_processes),
     path('processes/<int:process_id>/stop/', views.stop_process_view),
     path('processes/<int:process_id>/restart/', views.restart_process_view),
+    path('processes/<int:process_id>/', views.delete_process_view),
 ]

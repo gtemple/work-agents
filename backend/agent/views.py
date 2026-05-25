@@ -701,6 +701,24 @@ def restart_process_view(request, process_id):
     return JsonResponse(_process_dict(p))
 
 
+def delete_process_view(request, process_id):
+    import os, signal
+    from .models import Process
+    if request.method != 'DELETE':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    try:
+        p = Process.objects.get(id=process_id)
+    except Process.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if p.pid and p.status == 'running':
+        try:
+            os.killpg(os.getpgid(p.pid), signal.SIGTERM)
+        except (ProcessLookupError, OSError):
+            pass
+    p.delete()
+    return JsonResponse({'ok': True})
+
+
 def _schedule_dict(s):
     return {
         'id': s.id,
