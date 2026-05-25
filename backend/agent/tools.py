@@ -724,7 +724,7 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         return '\n'.join(lines)
 
     elif tool_name == 'start_process':
-        import subprocess
+        import subprocess, uuid as _uuid
         from .models import Process as ProcessModel, GlobalEvent
         label = args['label']
         command = args['command']
@@ -732,16 +732,21 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         cwd_rel = args.get('cwd', '')
         work_dir = (session_dir / cwd_rel) if cwd_rel else session_dir
         work_dir.mkdir(parents=True, exist_ok=True)
+        log_dir = Path(settings.MEDIA_ROOT) / 'process_logs'
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f'{_uuid.uuid4().hex[:12]}.log'
         try:
+            log_fh = open(log_path, 'w')
             proc = subprocess.Popen(
                 command, shell=True, cwd=str(work_dir),
-                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                stdout=log_fh, stderr=subprocess.STDOUT,
                 start_new_session=True,
             )
         except Exception as e:
             return f'Failed to start process: {e}'
         db_proc = ProcessModel.objects.create(
-            session=session, label=label, command=command, cwd=str(work_dir), port=port, pid=proc.pid, status='running',
+            session=session, label=label, command=command, cwd=str(work_dir),
+            port=port, pid=proc.pid, status='running', log_file=str(log_path),
         )
         if session:
             try:

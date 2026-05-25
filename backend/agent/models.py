@@ -197,6 +197,7 @@ class Process(models.Model):
     scheme = models.CharField(max_length=8, default='http')
     pid = models.IntegerField(null=True, blank=True)
     status = models.CharField(max_length=16, choices=STATUS_CHOICES, default='running')
+    log_file = models.TextField(blank=True)
     started_at = models.DateTimeField(auto_now_add=True)
     stopped_at = models.DateTimeField(null=True, blank=True)
 

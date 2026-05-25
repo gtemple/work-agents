@@ -640,6 +640,7 @@ def _process_dict(p):
         'scheme': p.scheme,
         'pid': p.pid,
         'status': p.status,
+        'has_logs': bool(p.log_file),
         'started_at': p.started_at.isoformat(),
         'stopped_at': p.stopped_at.isoformat() if p.stopped_at else None,
     }
@@ -684,23 +685,27 @@ def stop_process_view(request, process_id):
 @csrf_exempt
 @require_http_methods(['POST'])
 def restart_process_view(request, process_id):
-    import subprocess, os
+    import subprocess, os, uuid as _uuid
+    from pathlib import Path
     from .models import Process
     try:
         p = Process.objects.get(id=process_id)
     except Process.DoesNotExist:
         return JsonResponse({'error': 'Not found'}, status=404)
-    # Kill old pid if still running
     if p.pid:
         try:
             os.killpg(os.getpgid(p.pid), __import__('signal').SIGTERM)
         except (ProcessLookupError, OSError):
             pass
+    log_dir = Path(settings.MEDIA_ROOT) / 'process_logs'
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f'{_uuid.uuid4().hex[:12]}.log'
     work_dir = p.cwd or '.'
     try:
+        log_fh = open(log_path, 'w')
         proc = subprocess.Popen(
             p.command, shell=True, cwd=work_dir,
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            stdout=log_fh, stderr=subprocess.STDOUT,
             start_new_session=True,
         )
     except Exception as e:
@@ -708,8 +713,51 @@ def restart_process_view(request, process_id):
     p.pid = proc.pid
     p.status = 'running'
     p.stopped_at = None
+    p.log_file = str(log_path)
     p.save()
     return JsonResponse(_process_dict(p))
+
+
+@require_http_methods(['GET'])
+def process_logs_stream(request, process_id):
+    import time, json, os
+    from pathlib import Path
+    from django.http import StreamingHttpResponse
+    from .models import Process
+    try:
+        p = Process.objects.get(id=process_id)
+    except Process.DoesNotExist:
+        return JsonResponse({'error': 'not found'}, status=404)
+
+    def _stream():
+        if not p.log_file or not Path(p.log_file).exists():
+            yield f'data: {json.dumps({"line": "(no log file — process may have been started before log capture was enabled)"})}\n\n'
+            return
+        with open(p.log_file, 'r', errors='replace') as f:
+            idle = 0
+            while True:
+                line = f.readline()
+                if line:
+                    idle = 0
+                    yield f'data: {json.dumps({"line": line.rstrip()})}\n\n'
+                else:
+                    # Check if still running
+                    alive = False
+                    if p.pid:
+                        try:
+                            os.kill(p.pid, 0)
+                            alive = True
+                        except (ProcessLookupError, OSError):
+                            pass
+                    if not alive:
+                        yield f'data: {json.dumps({"done": True})}\n\n'
+                        return
+                    idle += 1
+                    if idle % 40 == 0:
+                        yield ': ping\n\n'
+                    time.sleep(0.25)
+
+    return StreamingHttpResponse(_stream(), content_type='text/event-stream')
 
 
 def delete_process_view(request, process_id):
