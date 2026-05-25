@@ -8,6 +8,15 @@ from . import approval
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
 PLAN_TOOLS = {'submit_plan'}
 
+# Session IDs that have been requested to stop
+_cancel_requested = set()
+
+def request_cancel(session_id):
+    _cancel_requested.add(str(session_id))
+
+def clear_cancel(session_id):
+    _cancel_requested.discard(str(session_id))
+
 
 def _save_global_event(session, event_type: str, data: dict):
     from .models import GlobalEvent
@@ -200,8 +209,16 @@ def run(session, prompt: str, skip_gated: bool = False):
     # Snapshot the session's existing token totals so mid-run saves don't double-count
     base_input_tokens  = session.input_tokens
     base_output_tokens = session.output_tokens
+    clear_cancel(session.id)
 
     while True:
+        if str(session.id) in _cancel_requested:
+            clear_cancel(session.id)
+            yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
+            from .models import Session as _Session
+            _Session.objects.filter(pk=session.pk).update(status='done')
+            return
+
         response = client.models.generate_content(
             model=model,
             contents=history,
@@ -327,6 +344,13 @@ def run(session, prompt: str, skip_gated: bool = False):
                 result_text = tools.dispatch(tool_name, args, session_dir, settings.GITHUB_TOKEN, session=session)
                 yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
                 agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
+
+            if str(session.id) in _cancel_requested:
+                clear_cancel(session.id)
+                yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
+                from .models import Session as _Session
+                _Session.objects.filter(pk=session.pk).update(status='done')
+                return
 
             tool_response_parts.append(types.Part(
                 function_response=types.FunctionResponse(

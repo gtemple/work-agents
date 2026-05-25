@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { argsSummary } from '../utils';
+import { stopSession } from '../api';
 
 function fmt() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
@@ -155,6 +156,9 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
         <span className="meta">
           {tokens > 0 && <span>{(tokens / 1000).toFixed(1)}k tok</span>}
         </span>
+        {session.status === 'running' && !needsInput && (
+          <button className="btn stop-btn" onClick={() => stopSession(session.id)} title="stop agent">■ stop</button>
+        )}
         {needsInput && (
           <span className="needs"><span className="d" /> needs your input</span>
         )}

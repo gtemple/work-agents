@@ -280,6 +280,16 @@ def approve_action(request, session_id):
     return JsonResponse({'ok': True})
 
 
+def stop_session(request, session_id):
+    if request.method != 'POST':
+        return JsonResponse({'error': 'Method not allowed'}, status=405)
+    from . import agent_loop
+    agent_loop.request_cancel(session_id)
+    # Also unblock any pending approval gate so the loop can exit
+    approval_mod.respond(session_id, False)
+    return JsonResponse({'ok': True})
+
+
 # ── Memory ────────────────────────────────────────────────────────────────────
 
 @require_http_methods(['GET'])

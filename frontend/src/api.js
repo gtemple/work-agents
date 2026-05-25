@@ -47,6 +47,10 @@ export async function approveAction(sessionId, approved) {
   });
 }
 
+export async function stopSession(sessionId) {
+  await fetch(`/api/sessions/${sessionId}/stop/`, { method: 'POST' });
+}
+
 export async function listMemories() {
   const res = await fetch('/api/memory/');
   return res.json();
