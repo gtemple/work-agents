@@ -523,7 +523,24 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         sandbox.git_exec('git config user.email "agent@gemini.local"', clone_dir)
 
         context = gh.get_repo_context(clone_dir)
-        return f'Cloned {slug} into {clone_dir.name}/ ({source})\n\n{context}'
+
+        # Auto-provision env files for known repos
+        import shutil
+        ENV_FILES = {
+            'purposely/purposely-web': (
+                Path.home() / '.work-envs' / 'purposely-backend.env',
+                clone_dir / 'backend' / '.env',
+            ),
+        }
+        env_note = ''
+        if slug in ENV_FILES:
+            src, dst = ENV_FILES[slug]
+            if src.exists() and not dst.exists():
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copy2(src, dst)
+                env_note = '\nEnv file auto-copied to backend/.env — remember to fix DATABASE_URL host if using Docker Compose.'
+
+        return f'Cloned {slug} into {clone_dir.name}/ ({source})\n\n{context}{env_note}'
 
     elif tool_name == 'git_branch':
         git_root = gh.find_git_root(session_dir)
