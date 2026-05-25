@@ -212,15 +212,17 @@ A `Project` has one **orchestrator session** (role=`orchestrator`) that discusse
 ## Deployment
 
 - **Dev (WSL2)**: `cd backend && source venv/bin/activate && python manage.py runserver` + `cd frontend && npm run dev`
-- **Mac (live)**: Django on `0.0.0.0:8000`, Vite built to `frontend/dist/`, served as static from Django. SSH alias: `mac` (192.168.2.18, user: giordanotemple). Venv at `backend/.venv/`.
+- **Mac (live)**: Gunicorn + Nginx, managed by LaunchAgents. SSH alias: `mac` (192.168.2.18, user: giordanotemple). Venv at `backend/.venv/`.
+  - Backend LaunchAgent: `~/Library/LaunchAgents/local.work-agents.backend.plist` (gunicorn on 127.0.0.1:8000)
+  - Nginx LaunchAgent: `~/Library/LaunchAgents/local.work-agents.nginx.plist`
+  - **Do NOT use `kill` or `nohup runserver`** — gunicorn is managed by launchd and will auto-restart
 - **GitHub**: `git@github.com:gtemple/work-agents.git`
 - **Deploy flow** (Claude does this):
   1. `git add -A && git commit -m "..." && git push` from WSL2
   2. `ssh mac 'cd work-agents && git pull'`
   3. `ssh mac 'cd work-agents/backend && source .venv/bin/activate && python manage.py migrate'`
-  4. `ssh mac 'export PATH="$PATH:/opt/homebrew/bin" && cd work-agents/frontend && npm run build'`
-  5. `ssh mac 'kill <django_pid>'` then restart: `ssh mac 'cd work-agents/backend && source .venv/bin/activate && nohup python manage.py runserver 0.0.0.0:8000 > /tmp/django.log 2>&1 &'`
-  6. Find Django PID: `ssh mac 'ps aux | grep manage | grep -v grep'`
+  4. `ssh mac 'export PATH="$PATH:/usr/local/bin" && cd work-agents/frontend && npm run build'`
+  5. `ssh mac 'launchctl unload ~/Library/LaunchAgents/local.work-agents.backend.plist && launchctl load ~/Library/LaunchAgents/local.work-agents.backend.plist'`
 
 ---
 
