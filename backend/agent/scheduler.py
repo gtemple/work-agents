@@ -39,48 +39,49 @@ def _generate_daily_digest(date_str: str):
 
     session_summary = '\n'.join(lines)
 
-    prompt = f"""You are writing a short daily digest for a developer dashboard.
-
-Here are the AI agent sessions from yesterday ({date_str}):
-
-{session_summary}
-
-Return JSON with two fields:
-- headline: one punchy sentence (max 12 words) summarising the day — what was the main thing that happened? Be specific, not generic.
-- content: a concise markdown digest (3–5 short sections max). Use these headings as relevant: ### Shipped, ### In progress, ### Notes. Keep each bullet to one line. Be specific — use the session titles. No filler. No intro sentence."""
-
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     from google.genai import types
-    response = client.models.generate_content(
+
+    context = f"AI agent sessions from {date_str}:\n{session_summary}"
+
+    # Call 1: headline only (structured to guarantee a short clean string)
+    headline_resp = client.models.generate_content(
         model=settings.GEMINI_MODEL,
-        contents=prompt,
+        contents=f"{context}\n\nWrite a single punchy headline (max 12 words) summarising the day. Be specific, not generic.",
         config=types.GenerateContentConfig(
             response_mime_type='application/json',
             response_schema=types.Schema(
                 type=types.Type.OBJECT,
-                properties={
-                    'headline': types.Schema(type=types.Type.STRING),
-                    'content':  types.Schema(type=types.Type.STRING),
-                },
-                required=['headline', 'content'],
+                properties={'headline': types.Schema(type=types.Type.STRING)},
+                required=['headline'],
             ),
         ),
     )
+    headline = json.loads(headline_resp.candidates[0].content.parts[0].text).get('headline', '')
 
-    if response.usage_metadata:
-        u = response.usage_metadata
-        try:
-            TokenUsage.objects.create(
-                session=None, source='digest',
-                input_tokens=getattr(u, 'prompt_token_count', 0) or 0,
-                output_tokens=getattr(u, 'candidates_token_count', 0) or 0,
-            )
-        except Exception:
-            pass
+    # Call 2: body as plain text (structured output collapses newlines)
+    body_resp = client.models.generate_content(
+        model=settings.GEMINI_MODEL,
+        contents=f"""{context}
 
-    result = json.loads(response.candidates[0].content.parts[0].text)
-    content = result.get('content', '').replace('\\n', '\n')
-    value = json.dumps({'date': date_str, 'headline': result.get('headline', ''), 'content': content})
+Write a concise markdown digest (3–5 short sections). Use headings: ### Shipped, ### In progress, ### Notes (only include relevant ones).
+Keep each bullet to one line. Use the session titles. No intro sentence. No filler.""",
+    )
+    content = body_resp.candidates[0].content.parts[0].text.strip()
+
+    for resp in (headline_resp, body_resp):
+        if resp.usage_metadata:
+            u = resp.usage_metadata
+            try:
+                TokenUsage.objects.create(
+                    session=None, source='digest',
+                    input_tokens=getattr(u, 'prompt_token_count', 0) or 0,
+                    output_tokens=getattr(u, 'candidates_token_count', 0) or 0,
+                )
+            except Exception:
+                pass
+
+    value = json.dumps({'date': date_str, 'headline': headline, 'content': content})
     Memory.objects.update_or_create(key=f'daily_digest_{date_str}', defaults={'value': value})
 
 
