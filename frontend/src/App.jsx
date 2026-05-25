@@ -581,7 +581,12 @@ export default function App() {
             <>
               <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setDigestOpen(o => !o)}>
                 <b>digest</b>
-                <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>
+                {digest.headline && (
+                  <span style={{ color: 'var(--fg-2)', fontSize: 11, fontWeight: 400, textTransform: 'none', letterSpacing: 0, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {digest.headline}
+                  </span>
+                )}
+                <span style={{ color: 'var(--fg-4)', fontSize: 11, flexShrink: 0 }}>
                   {new Date(digest.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
                 </span>
                 <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{digestOpen ? '▾' : '▸'}</span>

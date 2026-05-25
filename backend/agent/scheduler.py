@@ -45,16 +45,26 @@ Here are the AI agent sessions from yesterday ({date_str}):
 
 {session_summary}
 
-Write a concise markdown digest (3–5 short sections max). Use these headings as relevant:
-### Shipped, ### In progress, ### Failed, ### Notes
-
-Keep each bullet to one line. Be specific about what was done — use the session titles.
-If nothing interesting happened, say so briefly. No filler. No intro sentence."""
+Return JSON with two fields:
+- headline: one punchy sentence (max 12 words) summarising the day — what was the main thing that happened? Be specific, not generic.
+- content: a concise markdown digest (3–5 short sections max). Use these headings as relevant: ### Shipped, ### In progress, ### Notes. Keep each bullet to one line. Be specific — use the session titles. No filler. No intro sentence."""
 
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    from google.genai import types
     response = client.models.generate_content(
         model=settings.GEMINI_MODEL,
         contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type='application/json',
+            response_schema=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    'headline': types.Schema(type=types.Type.STRING),
+                    'content':  types.Schema(type=types.Type.STRING),
+                },
+                required=['headline', 'content'],
+            ),
+        ),
     )
 
     if response.usage_metadata:
@@ -68,8 +78,8 @@ If nothing interesting happened, say so briefly. No filler. No intro sentence.""
         except Exception:
             pass
 
-    content = response.candidates[0].content.parts[0].text.strip()
-    value = json.dumps({'date': date_str, 'content': content})
+    result = json.loads(response.candidates[0].content.parts[0].text)
+    value = json.dumps({'date': date_str, 'headline': result.get('headline', ''), 'content': result.get('content', '')})
     Memory.objects.update_or_create(key=f'daily_digest_{date_str}', defaults={'value': value})
 
 
