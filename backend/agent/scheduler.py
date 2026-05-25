@@ -9,20 +9,18 @@ _thread = None
 
 def _generate_daily_digest(date_str: str):
     """Summarise yesterday's sessions into a markdown digest and store in Memory."""
-    from datetime import date, timedelta
-    from django.utils import timezone
+    from datetime import date, timedelta, datetime, timezone as dt_tz
     from django.conf import settings
     from google import genai
     from .models import Session, AgentStep, Memory, TokenUsage
 
-    yesterday_start = timezone.datetime.combine(
+    yesterday_start = datetime.combine(
         date.today() - timedelta(days=1),
-        timezone.datetime.min.time(),
-        tzinfo=timezone.utc,
-    )
-    today_start = timezone.datetime.combine(
-        date.today(), timezone.datetime.min.time(), tzinfo=timezone.utc
-    )
+        datetime.min.time(),
+    ).replace(tzinfo=dt_tz.utc)
+    today_start = datetime.combine(
+        date.today(), datetime.min.time()
+    ).replace(tzinfo=dt_tz.utc)
 
     sessions = Session.objects.filter(
         created_at__gte=yesterday_start,
