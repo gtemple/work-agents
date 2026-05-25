@@ -563,6 +563,10 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         git_root = gh.find_git_root(session_dir)
         if not git_root:
             return 'Error: no git repository found'
+        branch_result = sandbox.git_exec('git rev-parse --abbrev-ref HEAD', git_root)
+        current_branch = (branch_result.get('stdout') or '').strip()
+        if current_branch in ('main', 'master'):
+            return f'Error: pushing directly to {current_branch} is not allowed. Create a branch first with git_branch, then push and open a PR.'
         result = sandbox.git_exec('git push -u origin HEAD', git_root, timeout=60)
         out = (result['stdout'] + result['stderr']).replace(github_token, '***')
         if result['exit_code'] != 0:
