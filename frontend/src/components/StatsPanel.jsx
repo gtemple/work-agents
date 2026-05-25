@@ -66,6 +66,11 @@ export default function StatsPanel({ onClose }) {
   const systemTokens = stats ? stats.summary.system_input_tokens + stats.summary.system_output_tokens : 0;
   const systemCost   = stats ? stats.summary.system_cost : 0;
 
+  const scopeWork     = stats?.by_scope?.work     ?? { input: 0, output: 0, cost: 0 };
+  const scopePersonal = stats?.by_scope?.personal ?? { input: 0, output: 0, cost: 0 };
+  const scopeTotal    = (scopeWork.input + scopeWork.output) + (scopePersonal.input + scopePersonal.output);
+  const workPct       = scopeTotal > 0 ? Math.round(((scopeWork.input + scopeWork.output) / scopeTotal) * 100) : 50;
+
   return (
     <div style={{
       position: 'fixed', inset: 0, background: '#00000099', zIndex: 200,
@@ -120,6 +125,50 @@ export default function StatsPanel({ onClose }) {
                 </div>
                 <DailyChart daily={stats.daily} />
               </div>
+
+              {/* Scope split */}
+              {scopeTotal > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    Scope split
+                  </div>
+                  <div style={{ display: 'flex', height: 8, borderRadius: 4, overflow: 'hidden', marginBottom: 8 }}>
+                    <div style={{ width: `${workPct}%`, background: '#3b82f6' }} />
+                    <div style={{ flex: 1, background: '#8b5cf6' }} />
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span style={{ fontSize: 12, color: '#3b82f6' }}>
+                      work {workPct}% · {formatTokens(scopeWork.input + scopeWork.output)} tok · {formatCost(scopeWork.cost)}
+                    </span>
+                    <span style={{ fontSize: 12, color: '#8b5cf6' }}>
+                      personal {100 - workPct}% · {formatTokens(scopePersonal.input + scopePersonal.output)} tok · {formatCost(scopePersonal.cost)}
+                    </span>
+                  </div>
+                </div>
+              )}
+
+              {/* By model */}
+              {stats?.by_model?.length > 0 && (
+                <div style={{ marginBottom: 24 }}>
+                  <div style={{ fontSize: 11, color: '#475569', marginBottom: 10, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                    By model
+                  </div>
+                  <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b' }}>
+                    {stats.by_model.map((m, i) => (
+                      <div key={m.model} style={{
+                        display: 'flex', alignItems: 'center', gap: 12,
+                        padding: '9px 14px', borderBottom: i < stats.by_model.length - 1 ? '1px solid #0d1829' : 'none',
+                        background: i % 2 === 0 ? '#0a1628' : 'transparent',
+                      }}>
+                        <span style={{ fontSize: 12, color: '#94a3b8', flex: 1, fontFamily: 'monospace' }}>{m.model}</span>
+                        <span style={{ fontSize: 12, color: '#64748b', fontVariantNumeric: 'tabular-nums' }}>{formatTokens(m.input_tokens + m.output_tokens)} tok</span>
+                        <span style={{ fontSize: 11, color: '#475569', fontVariantNumeric: 'tabular-nums', width: 64, textAlign: 'right' }}>{formatCost(m.cost)}</span>
+                        <span style={{ fontSize: 10, color: '#334155', width: 50, textAlign: 'right' }}>{m.turns} turns</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {/* Top sessions */}
               <div>

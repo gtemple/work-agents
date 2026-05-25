@@ -401,6 +401,35 @@ def get_stats(request):
         system_output += o
         system_cost   += _token_cost(i, o, row['model'] or 'gemini-2.5-flash')
 
+    # Per-model breakdown (for display)
+    by_model = []
+    for row in model_rows:
+        i, o = row['input'] or 0, row['output'] or 0
+        by_model.append({
+            'model': row['model'] or 'unknown',
+            'input_tokens': i,
+            'output_tokens': o,
+            'turns': row['turns'] or 0,
+            'cost': _token_cost(i, o, row['model'] or 'gemini-2.5-flash'),
+        })
+    by_model.sort(key=lambda r: r['cost'], reverse=True)
+
+    # Work vs personal scope split (excludes system/NULL session tokens)
+    scope_agg = {'work': {'input': 0, 'output': 0}, 'personal': {'input': 0, 'output': 0}}
+    scope_rows = (
+        TokenUsage.objects
+        .filter(session__isnull=False)
+        .values('session__is_work', 'model')
+        .annotate(input=Sum('input_tokens'), output=Sum('output_tokens'))
+    )
+    scope_cost = {'work': 0.0, 'personal': 0.0}
+    for row in scope_rows:
+        key = 'work' if row['session__is_work'] else 'personal'
+        i, o = row['input'] or 0, row['output'] or 0
+        scope_agg[key]['input']  += i
+        scope_agg[key]['output'] += o
+        scope_cost[key] += _token_cost(i, o, row['model'] or 'gemini-2.5-flash')
+
     top_sessions = (
         Session.objects
         .filter(input_tokens__gt=0)
@@ -434,6 +463,11 @@ def get_stats(request):
             'system_input_tokens': system_input,
             'system_output_tokens': system_output,
             'system_cost': system_cost,
+        },
+        'by_model': by_model,
+        'by_scope': {
+            'work':     {**scope_agg['work'],     'cost': scope_cost['work']},
+            'personal': {**scope_agg['personal'], 'cost': scope_cost['personal']},
         },
         'top_sessions': [
             {
