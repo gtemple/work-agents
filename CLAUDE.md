@@ -249,3 +249,9 @@ A `Project` has one **orchestrator session** (role=`orchestrator`) that discusse
 - **Keys**: key-value `Memory` store — agents and user can read/write
 - **About me**: `UserContext` singleton — what agents learn about the user over time
 - **Repos**: `RepoMemory` per repo — architecture notes, conventions, gotchas discovered by agents
+
+---
+
+## Future ideas
+
+- **Mobile app (PWA)**: Add a `manifest.json` + service worker to the frontend. Chrome on Android will offer "Add to Home Screen" → launches as a full-screen app with its own icon. No native code or APK needed. Works as-is since the Mac is reachable at `192.168.2.18:8000` on the local network.
