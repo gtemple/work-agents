@@ -28,7 +28,7 @@ export default function ProcessesBar({ processes, onRefresh }) {
                   <a className="proc-url" href={url} target="_blank" rel="noreferrer">:{p.port} →</a>
                 )}
                 {p.status === 'running' ? (
-                  <button className="proc-stop" onClick={() => handleStop(p.id)} title="stop">⊠</button>
+                  <button className="proc-stop" onClick={() => handleStop(p.id)} title="stop">■</button>
                 ) : (
                   <button className="proc-restart" onClick={() => handleRestart(p.id)} title="restart">↺</button>
                 )}
@@ -73,7 +73,7 @@ export default function ProcessesBar({ processes, onRefresh }) {
                     <td className="proc-d-when">{p.started_at ? new Date(p.started_at).toLocaleString() : '—'}</td>
                     <td className="proc-d-actions">
                       {p.status === 'running'
-                        ? <button className="proc-stop" onClick={() => handleStop(p.id)} title="stop">⊠</button>
+                        ? <button className="proc-stop" onClick={() => handleStop(p.id)} title="stop">■</button>
                         : <button className="proc-restart" onClick={() => handleRestart(p.id)} title="restart">↺</button>
                       }
                       {confirming === p.id ? (
