@@ -210,6 +210,13 @@ export default function App() {
             }));
           }
 
+          if (ev.event_type === 'tool_result') {
+            setSessions(prev => prev.map(s => {
+              if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
+              return { ...s, liveSteps: [...s.liveSteps, { step_type: 'tool_result', data: { tool: ev.data.tool, result: ev.data.result } }] };
+            }));
+          }
+
           if (ev.event_type === 'plan_ready') {
             setSessions(prev => prev.map(s =>
               s.id === ev.session_id && !s.pendingApproval
@@ -286,10 +293,15 @@ export default function App() {
     if (sess.status === 'running' && !sess.liveSteps?.length && !sess.eventsLoadedUpTo) {
       getSessionEvents(id).then(({ events }) => {
         if (!events?.length) return;
-        const steps = events.filter(e => e.event_type === 'tool_call')
-          .map(e => ({ step_type: 'tool_call', data: { tool: e.data.tool, args: e.data.args } }));
+        const steps = events
+          .filter(e => e.event_type === 'tool_call' || e.event_type === 'tool_result')
+          .map(e => e.event_type === 'tool_call'
+            ? { step_type: 'tool_call', data: { tool: e.data.tool, args: e.data.args } }
+            : { step_type: 'tool_result', data: { tool: e.data.tool, result: e.data.result } }
+          );
+        const lastId = events[events.length - 1].id;
         setSessions(prev => prev.map(s =>
-          s.id === id ? { ...s, liveSteps: steps, stepCount: steps.length, eventsLoadedUpTo: events[events.length - 1].id } : s
+          s.id === id ? { ...s, liveSteps: steps, stepCount: steps.filter(x => x.step_type === 'tool_call').length, eventsLoadedUpTo: lastId } : s
         ));
       });
     } else if (!sess.messages?.length && sess.status !== 'running') {
