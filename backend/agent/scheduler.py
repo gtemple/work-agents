@@ -79,7 +79,8 @@ Return JSON with two fields:
             pass
 
     result = json.loads(response.candidates[0].content.parts[0].text)
-    value = json.dumps({'date': date_str, 'headline': result.get('headline', ''), 'content': result.get('content', '')})
+    content = result.get('content', '').replace('\\n', '\n')
+    value = json.dumps({'date': date_str, 'headline': result.get('headline', ''), 'content': content})
     Memory.objects.update_or_create(key=f'daily_digest_{date_str}', defaults={'value': value})
 
 
