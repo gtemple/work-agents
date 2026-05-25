@@ -366,9 +366,11 @@ def run(session, prompt: str, skip_gated: bool = False):
                 session.save(update_fields=['pending_plan'])
                 if not approved:
                     result_text = 'Plan rejected by the user. Revise your approach and submit a new plan.'
+                    _save_global_event(session, 'approval_rejected', {'tool': tool_name})
                     yield {'type': 'approval_rejected', 'payload': {'tool': tool_name}}
                 else:
                     result_text = 'Plan approved. Proceed with implementation.'
+                    _save_global_event(session, 'approval_granted', {'tool': tool_name})
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
 
             elif tool_name in GATED_TOOLS and not skip_gated:
@@ -381,8 +383,10 @@ def run(session, prompt: str, skip_gated: bool = False):
                 approved = approval.wait_for_approval(session.id)
                 if not approved:
                     result_text = f'Action "{tool_name}" was rejected by the user.'
+                    _save_global_event(session, 'approval_rejected', {'tool': tool_name})
                     yield {'type': 'approval_rejected', 'payload': {'tool': tool_name}}
                 else:
+                    _save_global_event(session, 'approval_granted', {'tool': tool_name})
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
                     yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
                     agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
@@ -403,6 +407,7 @@ def run(session, prompt: str, skip_gated: bool = False):
 
             if str(session.id) in _cancel_requested:
                 clear_cancel(session.id)
+                _save_global_event(session, 'error', {'message': 'Stopped by user.'})
                 yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
                 from .models import Session as _Session
                 _Session.objects.filter(pk=session.pk).update(status='done')

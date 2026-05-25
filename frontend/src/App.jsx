@@ -165,17 +165,26 @@ export default function App() {
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
     getRecentEvents(80).then(({ events }) => {
       if (!events?.length) return;
-      const lines = events
-        .filter(e => e.event_type === 'tool_call')
-        .map(e => {
-          const d = new Date(e.created_at), p = n => String(n).padStart(2, '0');
-          return {
-            t: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
-            agent: e.session_title?.split(' ')[0] || e.session_id?.slice(0, 8) || '—',
-            lvl: 'tool',
-            msg: `${e.data.tool} ${argsSummary(e.data.tool, e.data.args || {})}`.trim(),
-          };
-        });
+      const lines = events.flatMap(e => {
+        const d = new Date(e.created_at), p = n => String(n).padStart(2, '0');
+        const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+        const agent = e.session_title?.split(' ')[0] || e.session_id?.slice(0, 8) || '—';
+        if (e.event_type === 'tool_call')
+          return [{ t, agent, lvl: 'tool', msg: `${e.data.tool} ${argsSummary(e.data.tool, e.data.args || {})}`.trim() }];
+        if (e.event_type === 'done')
+          return [{ t, agent, lvl: 'info', msg: 'turn complete' }];
+        if (e.event_type === 'approval_required')
+          return [{ t, agent, lvl: 'warn', msg: `approval required: ${e.data.tool}` }];
+        if (e.event_type === 'approval_granted')
+          return [{ t, agent, lvl: 'info', msg: `approved: ${e.data.tool}` }];
+        if (e.event_type === 'approval_rejected')
+          return [{ t, agent, lvl: 'warn', msg: `rejected: ${e.data.tool}` }];
+        if (e.event_type === 'plan_ready')
+          return [{ t, agent, lvl: 'info', msg: 'plan submitted' }];
+        if (e.event_type === 'error')
+          return [{ t, agent, lvl: 'err', msg: e.data.message || 'error' }];
+        return [];
+      });
       setFeed(lines.slice(-60));
     });
   }, []);
@@ -194,20 +203,28 @@ export default function App() {
         for (const ev of events) {
           const sess = sessionsRef.current.find(s => s.id === ev.session_id);
 
-          if (ev.event_type === 'tool_call') {
+          if (ev.event_type === 'tool_call' || ev.event_type === 'done' || ev.event_type === 'error' ||
+              ev.event_type === 'approval_required' || ev.event_type === 'approval_granted' || ev.event_type === 'approval_rejected' || ev.event_type === 'plan_ready') {
             const d = new Date(ev.created_at), p = n => String(n).padStart(2, '0');
-            setFeed(prev => [...prev, {
-              t: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
-              agent: sess?.linear_issue_key || ev.session_title?.split(' ')[0] || ev.session_id?.slice(0, 8) || '—',
-              lvl: 'tool',
-              msg: `${ev.data.tool} ${argsSummary(ev.data.tool, ev.data.args || {})}`.trim(),
-            }].slice(-80));
-            setSessions(prev => prev.map(s => {
-              if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
-              return { ...s, status: 'running', startedAt: s.startedAt ?? Date.now(),
-                liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args } }],
-                stepCount: s.stepCount + 1 };
-            }));
+            const agent = sess?.linear_issue_key || ev.session_title?.split(' ')[0] || ev.session_id?.slice(0, 8) || '—';
+            const t = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+            const feedEntry =
+              ev.event_type === 'tool_call'          ? { t, agent, lvl: 'tool', msg: `${ev.data.tool} ${argsSummary(ev.data.tool, ev.data.args || {})}`.trim() } :
+              ev.event_type === 'done'               ? { t, agent, lvl: 'info', msg: 'turn complete' } :
+              ev.event_type === 'error'              ? { t, agent, lvl: 'err',  msg: ev.data.message || 'error' } :
+              ev.event_type === 'approval_required'  ? { t, agent, lvl: 'warn', msg: `approval required: ${ev.data.tool}` } :
+              ev.event_type === 'approval_granted'   ? { t, agent, lvl: 'info', msg: `approved: ${ev.data.tool}` } :
+              ev.event_type === 'approval_rejected'  ? { t, agent, lvl: 'warn', msg: `rejected: ${ev.data.tool}` } :
+                                                       { t, agent, lvl: 'info', msg: 'plan submitted' };
+            setFeed(prev => [...prev, feedEntry].slice(-80));
+            if (ev.event_type === 'tool_call') {
+              setSessions(prev => prev.map(s => {
+                if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
+                return { ...s, status: 'running', startedAt: s.startedAt ?? Date.now(),
+                  liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args } }],
+                  stepCount: s.stepCount + 1 };
+              }));
+            }
           }
 
           if (ev.event_type === 'tool_result') {
@@ -335,13 +352,12 @@ export default function App() {
         : s
     ));
     const acc = { steps: [], text: '' };
+    const agentLabel = sess?.linear_issue_key || sessionId.slice(0, 8);
+    const feedLine = (lvl, msg) => setFeed(prev => [...prev, { t: fmtT(), agent: agentLabel, lvl, msg }].slice(-80));
     const es = streamAgent(sessionId, prompt, ev => {
       if (ev.type === 'tool_call') {
         acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload }];
-        setFeed(prev => [...prev, {
-          t: fmtT(), agent: sess?.linear_issue_key || sessionId.slice(0, 8),
-          lvl: 'tool', msg: `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim(),
-        }].slice(-80));
+        feedLine('tool', `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim());
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length } : s
         ));
@@ -356,6 +372,7 @@ export default function App() {
         acc.text = ev.payload.text;
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveText: acc.text } : s));
       } else if (ev.type === 'done') {
+        feedLine('info', 'turn complete');
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'done', liveSteps: [], liveText: '',
@@ -370,18 +387,27 @@ export default function App() {
         });
         delete esRefs.current[sessionId];
       } else if (ev.type === 'plan_ready') {
+        feedLine('info', 'plan submitted');
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, pendingApproval: { ...ev.payload, event_type: 'plan' } } : s
         ));
       } else if (ev.type === 'approval_required') {
+        feedLine('warn', `approval required: ${ev.payload.tool}`);
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, pendingApproval: { ...ev.payload, event_type: 'action' } } : s
         ));
-      } else if (ev.type === 'approval_granted' || ev.type === 'approval_rejected') {
+      } else if (ev.type === 'approval_granted') {
+        feedLine('info', `approved: ${ev.payload.tool}`);
+        setSessions(prev => prev.map(s =>
+          s.id === sessionId ? { ...s, pendingApproval: null } : s
+        ));
+      } else if (ev.type === 'approval_rejected') {
+        feedLine('warn', `rejected: ${ev.payload.tool}`);
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, pendingApproval: null } : s
         ));
       } else if (ev.type === 'error') {
+        feedLine('err', ev.payload.message || 'error');
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'error', liveSteps: [], liveText: '', pendingApproval: null,
