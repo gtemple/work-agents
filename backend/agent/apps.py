@@ -6,5 +6,8 @@ class AgentConfig(AppConfig):
     name = 'agent'
 
     def ready(self):
+        import os
+        if os.environ.get('RUN_MAIN') != 'true':
+            return
         from . import scheduler
         scheduler.start()
