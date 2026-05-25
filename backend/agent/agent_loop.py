@@ -46,6 +46,12 @@ When starting web apps or servers with start_process:
 - For Docker Compose apps: only start the app if the task requires verifying runtime behaviour (e.g. integration tests, checking an API response, visual verification). Don't spin it up just to make a code change or open a PR. If you do need to run it, use `PATH=/usr/local/bin:/usr/bin:/bin docker compose -p session-<short_session_id> up -d --build` with a free port, and always `docker compose -p session-<short_session_id> down` when you're done.
 - Confirm the port in the start_process call so a clickable URL appears in the dashboard
 
+Working directory:
+- Every bash command runs inside your session working directory — a private folder just for this session
+- Cloned repos appear as subdirectories: after `clone_repo owner/repo`, the code is at `repo-name/` relative to your working dir
+- Never use `../` or absolute paths to hunt for files — everything you need is inside your working directory
+- If you're unsure what's there, run `bash("ls -F")` to list the working directory, then `bash("ls -F repo-name/")` to explore a cloned repo
+
 For GitHub tasks:
 - Start by cloning the repo with clone_repo using "owner/repo" format
 - Always create a new branch with git_branch before making changes — never commit directly to main/master

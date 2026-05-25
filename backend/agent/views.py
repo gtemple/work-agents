@@ -647,10 +647,19 @@ def action_item_act(request, item_id, action):
         item.save(update_fields=['session', 'status'])
         threading.Thread(target=_refill, daemon=True).start()
 
+        repo_instruction = ''
+        if item.repo:
+            repo_name = item.repo.split('/')[-1]
+            repo_instruction = (
+                f'\n\nThe relevant repo is `{item.repo}`. '
+                f'Clone it first with `clone_repo {item.repo}`, '
+                f'then explore the code inside `{repo_name}/`.'
+            )
+
         initial_prompt = (
             f'Investigate this idea: {item.title}\n\n'
-            f'{item.description}\n\n'
-            f'Explore it thoroughly — look at relevant code or repos if needed. '
+            f'{item.description}'
+            f'{repo_instruction}\n\n'
             f'Share your findings and suggest concrete next steps.'
         )
 
