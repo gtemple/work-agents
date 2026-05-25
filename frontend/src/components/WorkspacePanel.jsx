@@ -443,7 +443,7 @@ function StatsView() {
     </div>
   );
 
-  const { summary, daily, top_sessions } = stats;
+  const { summary, daily, top_sessions, by_scope, by_model } = stats;
   const totalTokens = (summary.total_input_tokens || 0) + (summary.total_output_tokens || 0);
   const totalCost = summary.total_cost || 0;
   const avgCostPerSession = summary.total_sessions > 0 ? totalCost / summary.total_sessions : 0;
@@ -452,10 +452,10 @@ function StatsView() {
   const last30 = (daily || []).slice(-30);
   const maxTokens = Math.max(...last30.map(d => (d.input_tokens || 0) + (d.output_tokens || 0)), 1);
 
-  const workTokens = summary.work_tokens || 0;
-  const personalTokens = summary.personal_tokens || 0;
+  const workTokens = by_scope ? (by_scope.work.input || 0) + (by_scope.work.output || 0) : 0;
+  const personalTokens = by_scope ? (by_scope.personal.input || 0) + (by_scope.personal.output || 0) : 0;
   const totalScoped = workTokens + personalTokens;
-  const workPct = totalScoped > 0 ? Math.round(workTokens / totalScoped * 100) : 50;
+  const workPct = totalScoped > 0 ? Math.round(workTokens / totalScoped * 100) : 0;
   const personalPct = 100 - workPct;
 
   const peakDay = last30.reduce((best, d) => {
@@ -554,6 +554,25 @@ function StatsView() {
                   <span className="pct">{Math.round(b.pct * 100)}%</span>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {by_model?.length > 0 && (
+          <div className="stats-section">
+            <div className="sh"><span className="t">by model</span></div>
+            <div className="top-tbl">
+              {by_model.map((m, i) => {
+                const t = (m.input_tokens || 0) + (m.output_tokens || 0);
+                return (
+                  <div key={m.model} className="row">
+                    <span className="rnk" style={{ fontFamily: 'var(--mono)', color: 'var(--fg-3)' }}>{m.model}</span>
+                    <span className="ti" style={{ color: 'var(--fg-3)' }}>{m.turns} turn{m.turns !== 1 ? 's' : ''}</span>
+                    <span className="tok">{(t / 1000).toFixed(1)}k tok</span>
+                    <span className="cost">${(m.cost || 0).toFixed(4)}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
