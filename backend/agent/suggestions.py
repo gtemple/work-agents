@@ -35,7 +35,7 @@ def _log_tokens(input_tokens, output_tokens):
         pass
 
 
-def _build_context() -> str:
+def _build_context(repos: list[dict] | None = None) -> str:
     from .models import UserContext, RepoMemory, ActionItem, Session
 
     parts = []
@@ -45,6 +45,13 @@ def _build_context() -> str:
         parts.append(f"## About the user\n{ctx.content}")
     else:
         parts.append("## About the user\nNo profile yet — infer from activity.")
+
+    if repos:
+        repo_lines = '\n'.join(
+            f"- {r['name']} ({r['language']}, last pushed {r['pushed_at']}): {r['description']}"
+            for r in repos[:40]
+        )
+        parts.append(f"## User's GitHub repos (do not suggest work already represented here)\n{repo_lines}")
 
     try:
         rm = RepoMemory.objects.get(repo='purposely/purposely-web')
@@ -287,9 +294,16 @@ def fill_queue():
     ).aggregate(m=__import__('django.db.models', fromlist=['Max']).Max('queue_position'))['m'] or 0
     offset = 0
 
+    # Fetch repos once — used for both personal/work context and repo suggestions
+    try:
+        repos = _fetch_recent_repos()
+    except Exception:
+        logger.exception('GitHub repo fetch failed')
+        repos = []
+
     # Work + personal suggestions
     if n_work + n_personal > 0:
-        context = _build_context()
+        context = _build_context(repos)
         try:
             items = _call_gemini_work_personal(context, n_work, n_personal)
         except Exception:
@@ -316,8 +330,7 @@ def fill_queue():
     # Repo suggestions
     if n_repo > 0:
         try:
-            repos = _fetch_recent_repos()
-            context = _build_context()
+            context = _build_context(repos)
             items = _call_gemini_repos(repos, context, n_repo)
         except Exception:
             logger.exception('Repo suggestion generation failed')
