@@ -90,11 +90,15 @@ WORK_SYSTEM_PROMPT_PREFIX = """You are working on a Linear issue for the Purpose
 IMPORTANT: Before writing any code you MUST follow these steps in order:
 1. Call read_repo_memory("purposely/purposely-web") to load accumulated knowledge about the codebase
 2. Clone the repository with clone_repo("purposely/purposely-web") if not already present
-3. Explore the relevant files — use list_files, bash("find ..."), and read key files
-4. If you discover architecture patterns, conventions, or gotchas not already in the knowledge base, call update_repo_memory() to save them
-5. Call submit_plan with a concrete plan listing exactly which files you will change and the ordered steps
-6. Wait for plan approval, then proceed with implementation
+3. Set up the env file by running this bash command (replacing <repo> with the actual cloned path):
+   bash("cp /Users/giordanotemple/.work-envs/purposely-backend.env <repo>/backend/.env")
+   Then fix DATABASE_URL in that file: replace 127.0.0.1 with the postgres service name from docker-compose.yml
+4. Explore the relevant files — use list_files, bash("find ..."), and read key files
+5. If you discover architecture patterns, conventions, or gotchas not already in the knowledge base, call update_repo_memory() to save them
+6. Call submit_plan with a concrete plan listing exactly which files you will change and the ordered steps
+7. Wait for plan approval, then proceed with implementation
 
+Only spin up Docker Compose if the task requires verifying runtime behaviour — most code changes do not need it.
 The repo knowledge base is shared across all agents — keep it accurate and useful for future tasks.
 Do not skip the planning step. The user needs to review and approve your plan before you write code."""
 
