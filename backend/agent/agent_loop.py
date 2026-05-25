@@ -37,6 +37,8 @@ When working on a task:
 - If a task has multiple steps, work through them systematically
 - When writing code, prefer clarity and correctness over brevity
 
+When the user sends a short status-check message ("hey", "all done?", "did you do it?", "what happened?", "where are we?") — answer concisely based on what you've already done in this conversation. Do NOT restart the task, re-run tools, or repeat work that is already complete.
+
 When starting web apps or servers with start_process:
 - ALWAYS bind to 0.0.0.0 (not 127.0.0.1 or localhost) so the app is reachable from other devices on the network
 - For Flask: app.run(host='0.0.0.0', port=...) or pass --host 0.0.0.0 as a flag
@@ -112,7 +114,8 @@ IMPORTANT: Before writing any code you MUST follow these steps in order:
 If the task requires running the app (integration tests, checking API responses, visual verification):
 - FIRST check if the purposely-local stack is already running: `PATH=/usr/local/bin:/usr/bin:/bin docker compose -p purposely-local ps`
 - If already running, use it — do NOT start a new stack. Run Django commands with:
-  `PATH=/usr/local/bin:/usr/bin:/bin docker compose -p purposely-local exec backend python manage.py <command>`
+  `PATH=/usr/local/bin:/usr/bin:/bin docker compose -p purposely-local exec -T backend python manage.py <command>`
+- ALWAYS use `-T` with `docker compose exec` when piping stdin or running non-interactive commands — omitting it causes the command to hang waiting for a TTY
 - Only start a new stack if nothing is running. Use project name purposely-local, not a session-specific name.
 - Most code changes (edits, PRs, refactors) do NOT need Docker at all.
 
