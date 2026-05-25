@@ -100,7 +100,7 @@ class Schedule(models.Model):
 
 class TokenUsage(models.Model):
     """One row per API call. session=None for system calls (e.g. suggestion generation)."""
-    session = models.ForeignKey(Session, null=True, blank=True, on_delete=models.CASCADE, related_name='token_usage')
+    session = models.ForeignKey(Session, null=True, blank=True, on_delete=models.SET_NULL, related_name='token_usage')
     source = models.CharField(max_length=32, default='agent')  # agent | suggestions | other
     model = models.CharField(max_length=64, default='gemini-3.5-flash')
     input_tokens = models.IntegerField()

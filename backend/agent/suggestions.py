@@ -209,6 +209,8 @@ def _call_gemini_repos(repos: list[dict], context: str, n: int) -> list[dict]:
 
 Generate exactly {n} suggestions — each one tied to a specific repo from the list above.
 
+Do NOT suggest anything for purposely/purposely-web — that repo has dedicated work suggestions.
+
 Suggestions should be concrete improvements, new features, refactors, documentation, tests, or CI/CD improvements that would genuinely add value. Pick repos where you can make a specific, meaningful suggestion based on the repo name, description, and language.
 
 Each suggestion needs:

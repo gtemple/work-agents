@@ -61,9 +61,10 @@ export default function StatsPanel({ onClose }) {
     getStats().then(setStats);
   }, []);
 
-  const totalTokens = stats ? stats.summary.total_input_tokens + stats.summary.total_output_tokens : 0;
-  const totalCost = stats ? estimateCost(stats.summary.total_input_tokens, stats.summary.total_output_tokens) : 0;
-  const systemTokens = stats ? (stats.summary.system_input_tokens + stats.summary.system_output_tokens) : 0;
+  const totalTokens  = stats ? stats.summary.total_input_tokens + stats.summary.total_output_tokens : 0;
+  const totalCost    = stats ? stats.summary.total_cost : 0;
+  const systemTokens = stats ? stats.summary.system_input_tokens + stats.summary.system_output_tokens : 0;
+  const systemCost   = stats ? stats.summary.system_cost : 0;
 
   return (
     <div style={{
@@ -103,7 +104,7 @@ export default function StatsPanel({ onClose }) {
                 <StatCard
                   label="Total cost"
                   value={formatCost(totalCost)}
-                  sub={systemTokens > 0 ? `incl. ${formatTokens(systemTokens)} system` : 'Gemini 2.5 Flash rates'}
+                  sub={systemTokens > 0 ? `incl. ${formatCost(systemCost)} system (suggestions, digest)` : 'per-model pricing'}
                 />
                 <StatCard
                   label="Sessions"
@@ -133,7 +134,7 @@ export default function StatsPanel({ onClose }) {
                   <div style={{ borderRadius: 8, overflow: 'hidden', border: '1px solid #1e293b' }}>
                     {stats.top_sessions.map((s, i) => {
                       const total = s.input_tokens + s.output_tokens;
-                      const cost = estimateCost(s.input_tokens, s.output_tokens);
+                      const cost = estimateCost(s.input_tokens, s.output_tokens, s.model);
                       return (
                         <div key={s.id} style={{
                           display: 'flex', alignItems: 'center', gap: 12,

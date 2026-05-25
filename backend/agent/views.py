@@ -371,7 +371,7 @@ def get_stats(request):
     from django.db.models.functions import TruncDate
     from collections import defaultdict
 
-    # Per-model totals
+    # Per-model totals (all TokenUsage rows)
     model_rows = (
         TokenUsage.objects
         .values('model')
@@ -384,7 +384,22 @@ def get_stats(request):
         total_input  += i
         total_output += o
         total_turns  += row['turns'] or 0
-        total_cost   += _token_cost(i, o, row['model'] or 'gemini-3.5-flash')
+        total_cost   += _token_cost(i, o, row['model'] or 'gemini-2.5-flash')
+
+    # System token totals (session=None — suggestions, digest, etc.)
+    system_rows = (
+        TokenUsage.objects
+        .filter(session=None)
+        .values('model')
+        .annotate(input=Sum('input_tokens'), output=Sum('output_tokens'))
+    )
+    system_input = system_output = 0
+    system_cost = 0.0
+    for row in system_rows:
+        i, o = row['input'] or 0, row['output'] or 0
+        system_input  += i
+        system_output += o
+        system_cost   += _token_cost(i, o, row['model'] or 'gemini-2.5-flash')
 
     top_sessions = (
         Session.objects
@@ -407,7 +422,7 @@ def get_stats(request):
         daily_map[d]['input_tokens'] += i
         daily_map[d]['output_tokens'] += o
         daily_map[d]['turns']         += row['turns'] or 0
-        daily_map[d]['cost']          += _token_cost(i, o, row['model'] or 'gemini-3.5-flash')
+        daily_map[d]['cost']          += _token_cost(i, o, row['model'] or 'gemini-2.5-flash')
 
     return JsonResponse({
         'summary': {
@@ -416,6 +431,9 @@ def get_stats(request):
             'total_turns': total_turns,
             'total_sessions': Session.objects.count(),
             'total_cost': total_cost,
+            'system_input_tokens': system_input,
+            'system_output_tokens': system_output,
+            'system_cost': system_cost,
         },
         'top_sessions': [
             {
