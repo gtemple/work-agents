@@ -174,6 +174,33 @@ def _session_dir(session_id) -> Path:
     return Path(settings.MEDIA_ROOT) / 'sessions' / str(session_id)
 
 
+def _get_purposely_diff(session_dir: Path) -> str | None:
+    """Return git diff origin/main...HEAD for purposely-web if present, else None."""
+    from . import sandbox as _sandbox
+    purposely_dir = session_dir / 'purposely-web'
+    if not purposely_dir.exists():
+        return None
+    # Confirm remote is purposely-web
+    remote = _sandbox.git_exec('git remote get-url origin', purposely_dir)
+    if 'purposely-web' not in (remote.get('stdout') or ''):
+        return None
+    result = _sandbox.git_exec('git diff origin/main...HEAD', purposely_dir)
+    diff = (result.get('stdout') or '').strip()
+    if not diff:
+        # Fall back to uncommitted changes
+        result = _sandbox.git_exec('git diff HEAD', purposely_dir)
+        diff = (result.get('stdout') or '').strip()
+    if not diff:
+        return None
+    # Truncate to ~12k chars
+    if len(diff) > 12000:
+        lines = diff.splitlines()
+        truncated = '\n'.join(lines[:300])
+        truncated += f'\n\n… ({len(lines) - 300} more lines truncated)'
+        return truncated
+    return diff
+
+
 def _build_tool_config():
     return types.Tool(function_declarations=[
         types.FunctionDeclaration(**decl) for decl in tools.DECLARATIONS
@@ -345,8 +372,12 @@ def run(session, prompt: str, skip_gated: bool = False):
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
 
             elif tool_name in GATED_TOOLS and not skip_gated:
-                _save_global_event(session, 'approval_required', {'tool': tool_name, 'args': args})
-                yield {'type': 'approval_required', 'payload': {'tool': tool_name, 'args': args}}
+                diff = _get_purposely_diff(session_dir)
+                approval_payload = {'tool': tool_name, 'args': args}
+                if diff:
+                    approval_payload['diff'] = diff
+                _save_global_event(session, 'approval_required', approval_payload)
+                yield {'type': 'approval_required', 'payload': approval_payload}
                 approved = approval.wait_for_approval(session.id)
                 if not approved:
                     result_text = f'Action "{tool_name}" was rejected by the user.'
