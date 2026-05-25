@@ -196,12 +196,12 @@ export default function App() {
 
           if (ev.event_type === 'tool_call') {
             const d = new Date(ev.created_at), p = n => String(n).padStart(2, '0');
-            setFeed(prev => [{
+            setFeed(prev => [...prev, {
               t: `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`,
               agent: sess?.linear_issue_key || ev.session_title?.split(' ')[0] || ev.session_id?.slice(0, 8) || '—',
               lvl: 'tool',
               msg: `${ev.data.tool} ${argsSummary(ev.data.tool, ev.data.args || {})}`.trim(),
-            }, ...prev].slice(0, 80));
+            }].slice(-80));
             setSessions(prev => prev.map(s => {
               if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
               return { ...s, status: 'running', startedAt: s.startedAt ?? Date.now(),
@@ -326,10 +326,10 @@ export default function App() {
     const es = streamAgent(sessionId, prompt, ev => {
       if (ev.type === 'tool_call') {
         acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload }];
-        setFeed(prev => [{
+        setFeed(prev => [...prev, {
           t: fmtT(), agent: sess?.linear_issue_key || sessionId.slice(0, 8),
           lvl: 'tool', msg: `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim(),
-        }, ...prev].slice(0, 80));
+        }].slice(-80));
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length } : s
         ));
