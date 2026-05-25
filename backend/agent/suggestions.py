@@ -53,16 +53,24 @@ def _build_context() -> str:
     except RepoMemory.DoesNotExist:
         pass
 
-    recent = Session.objects.filter(
-        created_at__gte=timezone.now() - timezone.timedelta(days=14)
-    ).order_by('-created_at')[:20]
-    if recent:
-        lines = [f"- {s.title or 'Untitled'} ({'work' if s.is_work else 'personal'})" for s in recent]
-        parts.append("## Recent sessions\n" + '\n'.join(lines))
+    # All sessions — used to avoid re-suggesting things already being worked on
+    all_sessions = Session.objects.order_by('-created_at')[:60]
+    if all_sessions:
+        lines = [f"- {s.title or 'Untitled'} ({'work' if s.is_work else 'personal'})" for s in all_sessions]
+        parts.append(
+            "## Existing sessions (already being worked on — do NOT suggest anything resembling these)\n"
+            + '\n'.join(lines)
+        )
 
+    # Active, queued, and saved items — all should be excluded
+    existing_items = ActionItem.objects.exclude(status='dismissed').values_list('title', flat=True)[:60]
     dismissed = ActionItem.objects.filter(status='dismissed').values_list('title', flat=True)[:40]
-    if dismissed:
-        parts.append("## Previously dismissed (do not re-suggest)\n" + '\n'.join(f"- {t}" for t in dismissed))
+    exclude_titles = list(existing_items) + list(dismissed)
+    if exclude_titles:
+        parts.append(
+            "## Do not re-suggest any of these (already active, saved, queued, or dismissed)\n"
+            + '\n'.join(f"- {t}" for t in exclude_titles)
+        )
 
     return '\n\n'.join(parts)
 
@@ -120,11 +128,13 @@ def _call_gemini_work_personal(context: str, n_work: int, n_personal: int) -> li
 
 {context}
 
+CRITICAL: Do not suggest anything that overlaps with the existing sessions or excluded items listed above — not even a variation or renamed version of the same idea.
+
 Generate exactly {n_work} work-related and {n_personal} personal suggestions.
 
 Work suggestions: purposely-web codebase — code quality, open PRs, tech debt, architectural improvements. Be specific.
 
-Personal suggestions: new side project ideas, learning opportunities, personal repo maintenance, productivity improvements. Keep them grounded and actionable.
+Personal suggestions: new side project ideas, learning opportunities, personal repo maintenance, productivity improvements. Keep them grounded and actionable. Must be genuinely different from anything in the existing sessions list.
 
 Each suggestion needs:
 - title: short, punchy headline (max 10 words)
