@@ -207,11 +207,21 @@ body::before {
   font-size: 13px; line-height: 1.6; color: var(--fg-2);
   border-bottom: 1px dashed var(--line);
 }
+.digest-headline {
+  font-size: 12px; font-weight: 600; color: var(--fg-3);
+  letter-spacing: .04em; margin-bottom: 10px;
+}
 .digest-body h3 { font-size: 11px; font-weight: 600; color: var(--fg-3); text-transform: uppercase; letter-spacing: .1em; margin: 10px 0 4px; }
 .digest-body h3:first-child { margin-top: 0; }
 .digest-body ul { margin: 0; padding-left: 16px; }
 .digest-body li { margin: 2px 0; color: var(--fg-2); }
 .digest-body p { margin: 4px 0; }
+.digest-nav {
+  background: none; border: 1px solid var(--line-2); border-radius: 3px;
+  color: var(--fg-3); font-size: 11px; padding: 0 5px; cursor: pointer; line-height: 18px;
+}
+.digest-nav:hover:not(:disabled) { color: var(--fg); border-color: var(--fg-3); }
+.digest-nav:disabled { opacity: 0.3; cursor: default; }
 
 /* ── filter bar ──────────────────────────────────────────────────────────── */
 .filterbar {

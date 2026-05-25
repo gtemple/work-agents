@@ -3,7 +3,7 @@ import {
   createSession, listSessions, getSession, streamAgent, updateSession,
   approveAction, getEvents, getSessionEvents, getRecentEvents,
   listActionItems, actionItemAct,
-  listProcesses, deleteSession, getDigest,
+  listProcesses, deleteSession, getDigest, isoDate,
 } from './api';
 import LeftRail from './components/LeftRail';
 import TriageQueue from './components/TriageQueue';
@@ -140,6 +140,7 @@ export default function App() {
   const [sessionsOpen, setSessionsOpen]   = useState(true);
   const [digest, setDigest]               = useState(null);
   const [digestOpen, setDigestOpen]       = useState(false);
+  const [digestDate, setDigestDate]       = useState(() => isoDate(0));
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
@@ -166,7 +167,10 @@ export default function App() {
       setSessions(list.map(makeSessionState));
     });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
-    getDigest().then(d => d && setDigest(d));
+    getDigest(isoDate(0)).then(d => {
+      if (d) { setDigest(d); setDigestDate(isoDate(0)); }
+      else getDigest(isoDate(-1)).then(d2 => { if (d2) { setDigest(d2); setDigestDate(isoDate(-1)); } });
+    });
     getRecentEvents(80).then(({ events }) => {
       if (!events?.length) return;
       const lines = events.flatMap(e => {
@@ -577,11 +581,30 @@ export default function App() {
             <>
               <div className="sect" style={{ cursor: 'pointer' }} onClick={() => setDigestOpen(o => !o)}>
                 <b>digest</b>
-                <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>{digest.date}</span>
+                <span style={{ color: 'var(--fg-4)', fontSize: 11 }}>
+                  {new Date(digest.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}
+                </span>
                 <span style={{ color: 'var(--fg-4)', fontSize: 10 }}>{digestOpen ? '▾' : '▸'}</span>
+                <span style={{ marginLeft: 'auto', display: 'flex', gap: 4 }} onClick={e => e.stopPropagation()}>
+                  <button className="digest-nav" onClick={() => {
+                    const prev = new Date(digestDate + 'T12:00:00');
+                    prev.setDate(prev.getDate() - 1);
+                    const prevStr = prev.toISOString().slice(0, 10);
+                    getDigest(prevStr).then(d => d && (setDigest(d), setDigestDate(prevStr)));
+                  }}>←</button>
+                  <button className="digest-nav" disabled={digestDate >= isoDate(0)} onClick={() => {
+                    const next = new Date(digestDate + 'T12:00:00');
+                    next.setDate(next.getDate() + 1);
+                    const nextStr = next.toISOString().slice(0, 10);
+                    getDigest(nextStr).then(d => d && (setDigest(d), setDigestDate(nextStr)));
+                  }}>→</button>
+                </span>
               </div>
               {digestOpen && (
                 <div className="digest-body">
+                  <div className="digest-headline">
+                    {new Date(digest.date + 'T12:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
                   <ReactMarkdown>{digest.content}</ReactMarkdown>
                 </div>
               )}

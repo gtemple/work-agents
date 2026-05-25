@@ -70,7 +70,7 @@ If nothing interesting happened, say so briefly. No filler. No intro sentence.""
 
     content = response.candidates[0].content.parts[0].text.strip()
     value = json.dumps({'date': date_str, 'content': content})
-    Memory.objects.update_or_create(key='daily_digest', defaults={'value': value})
+    Memory.objects.update_or_create(key=f'daily_digest_{date_str}', defaults={'value': value})
 
 
 def _loop():
@@ -102,12 +102,7 @@ def _loop():
             now_local = timezone.now().astimezone()
             if now_local.hour >= 8:
                 today_str = date.today().isoformat()
-                try:
-                    existing = Memory.objects.get(key='daily_digest')
-                    existing_date = json.loads(existing.value).get('date')
-                    digest_done = existing_date == today_str
-                except Exception:
-                    digest_done = False
+                digest_done = Memory.objects.filter(key=f'daily_digest_{today_str}').exists()
                 if not digest_done:
                     try:
                         _generate_daily_digest(today_str)

@@ -56,12 +56,20 @@ export async function listMemories() {
   return res.json();
 }
 
-export async function getDigest() {
-  const res = await fetch('/api/memory/daily_digest/');
+export async function getDigest(dateStr) {
+  const res = await fetch(`/api/memory/daily_digest_${dateStr}/`);
   if (!res.ok) return null;
   const data = await res.json();
   try { return JSON.parse(data.value); } catch { return null; }
 }
+
+function isoDate(offset = 0) {
+  const d = new Date();
+  d.setDate(d.getDate() + offset);
+  return d.toISOString().slice(0, 10);
+}
+
+export { isoDate };
 
 export async function writeMemory(key, value) {
   const res = await fetch(`/api/memory/${encodeURIComponent(key)}/`, {
