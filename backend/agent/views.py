@@ -355,9 +355,9 @@ def memory_detail(request, key):
 # ── Stats ─────────────────────────────────────────────────────────────────────
 
 _MODEL_PRICING = {
-    'gemini-2.5-flash-lite': {'input': 0.10,  'output': 0.40},
-    'gemini-2.5-flash':      {'input': 0.30,  'output': 2.50},
-    'gemini-3.5-flash':      {'input': 1.50,  'output': 9.00},
+    'gemini-2.5-flash-lite': {'input': 0.10, 'output': 0.40},
+    'gemini-2.5-flash':      {'input': 0.30, 'output': 2.50},
+    'gemini-3.5-flash':      {'input': 1.50, 'output': 9.00},
 }
 
 def _token_cost(input_tokens, output_tokens, model):
