@@ -276,6 +276,12 @@ def stream_agent(request, session_id):
                     )
             except Exception:
                 pass
+            # Fire a GlobalEvent so the polling loop can show a toast for background sessions
+            try:
+                from .models import GlobalEvent
+                GlobalEvent.objects.create(session=session, event_type='error', data={'message': str(e)[:500]})
+            except Exception:
+                pass
             yield f'data: {json.dumps({"type": "error", "payload": {"message": str(e)}})}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')

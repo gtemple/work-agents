@@ -263,6 +263,17 @@ export default function App() {
                 s.id === ev.session_id ? { ...s, messages: data.messages, title: data.title || s.title } : s
               ));
             });
+            // Only toast for background sessions (ones without an active SSE stream)
+            if (!esRefs.current[ev.session_id]) {
+              setToasts(prev => [...prev, { id: ev.session_id, title: sess?.title || ev.session_title || 'Agent', color: '#22c55e', stepCount: 0 }]);
+            }
+          }
+
+          if (ev.event_type === 'error' && !esRefs.current[ev.session_id]) {
+            setSessions(prev => prev.map(s =>
+              s.id === ev.session_id ? { ...s, status: 'error', liveSteps: [], liveText: '' } : s
+            ));
+            setToasts(prev => [...prev, { id: ev.session_id, title: sess?.title || ev.session_title || 'Agent', color: '#ef4444', stepCount: 0 }]);
           }
 
           if (ev.event_type === 'process_started' || ev.event_type === 'process_stopped') {
@@ -381,10 +392,11 @@ export default function App() {
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveText: acc.text } : s));
       } else if (ev.type === 'done') {
         feedLine('info', 'turn complete');
+        const stepCount = acc.steps.filter(x => x.step_type === 'tool_call').length;
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'done', liveSteps: [], liveText: '',
-                stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length,
+                stepCount,
                 inputTokens: ev.payload.input_tokens ?? s.inputTokens,
                 outputTokens: ev.payload.output_tokens ?? s.outputTokens,
                 messages: [...s.messages, { role: 'assistant', content: acc.text, steps: acc.steps }] }
@@ -393,6 +405,7 @@ export default function App() {
         getSession(sessionId).then(data => {
           setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, title: data.title || s.title } : s));
         });
+        setToasts(prev => [...prev, { id: sessionId, title: sess?.title || sess?.linear_issue_key || 'Agent', color: '#22c55e', stepCount }]);
         delete esRefs.current[sessionId];
       } else if (ev.type === 'plan_ready') {
         feedLine('info', 'plan submitted');
@@ -422,6 +435,7 @@ export default function App() {
                 messages: [...s.messages, { role: 'assistant', content: `Error: ${ev.payload.message}`, steps: [] }] }
             : s
         ));
+        setToasts(prev => [...prev, { id: sessionId, title: sess?.title || sess?.linear_issue_key || 'Agent', color: '#ef4444', stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length }]);
         delete esRefs.current[sessionId];
       }
     });
