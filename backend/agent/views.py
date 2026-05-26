@@ -265,6 +265,17 @@ def stream_agent(request, session_id):
             for event in agent_loop.run(session, prompt):
                 yield f'data: {json.dumps(event)}\n\n'
         except Exception as e:
+            # Save a fallback assistant message so the session isn't blank in the UI
+            try:
+                last = Message.objects.filter(session=session).order_by('-created_at').first()
+                if not last or last.role != 'assistant':
+                    Message.objects.create(
+                        session=session,
+                        role='assistant',
+                        content=f'[Session ended with an error before completing. Error: {str(e)[:500]}]',
+                    )
+            except Exception:
+                pass
             yield f'data: {json.dumps({"type": "error", "payload": {"message": str(e)}})}\n\n'
 
     response = StreamingHttpResponse(event_stream(), content_type='text/event-stream')

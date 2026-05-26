@@ -258,9 +258,10 @@ Return JSON only."""
 
     text = response.candidates[0].content.parts[0].text
     items = json.loads(text).get('items', [])
-    # Ensure type is set correctly
     for item in items:
         item['type'] = 'repo'
+    # purposely-web is covered by work suggestions — exclude it here
+    items = [i for i in items if i.get('repo') != 'purposely/purposely-web']
     return items
 
 

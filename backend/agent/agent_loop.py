@@ -265,14 +265,13 @@ def run(session, prompt: str, skip_gated: bool = False):
     # Snapshot the session's existing token totals so mid-run saves don't double-count
     base_input_tokens  = session.input_tokens
     base_output_tokens = session.output_tokens
+    assistant_message_saved = False
     clear_cancel(session.id)
 
     while True:
         if str(session.id) in _cancel_requested:
             clear_cancel(session.id)
             yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
-            from .models import Session as _Session
-            _Session.objects.filter(pk=session.pk).update(status='done')
             return
 
         response = client.models.generate_content(
@@ -339,6 +338,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                     output_tokens=total_output_tokens,
                 )
 
+            assistant_message_saved = True
             _post_linear_comment(session, f'✅ Agent completed turn.\n\n{text[:1000]}')
             _save_global_event(session, 'done', {
                 'message_id': str(assistant_msg.id),
@@ -415,8 +415,6 @@ def run(session, prompt: str, skip_gated: bool = False):
                 clear_cancel(session.id)
                 _save_global_event(session, 'error', {'message': 'Stopped by user.'})
                 yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
-                from .models import Session as _Session
-                _Session.objects.filter(pk=session.pk).update(status='done')
                 return
 
             tool_response_parts.append(types.Part(
