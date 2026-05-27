@@ -2,7 +2,7 @@ from django.test import TestCase
 from django.urls import reverse
 from unittest.mock import patch, MagicMock, ANY
 from agent.models import Session, Project, Memory, RepoMemory, UserContext, Message, AgentStep
-from agent.agent_loop import _compose_system_prompt, BASE_SYSTEM_PROMPT, ORCHESTRATOR_SYSTEM_PROMPT, WORK_SYSTEM_PROMPT_PREFIX, TASK_TYPE_INSTRUCTIONS, run
+from agent.agent_loop import _compose_system_prompt, BASE_SYSTEM_PROMPT, ORCHESTRATOR_SYSTEM_PROMPT, WORK_SYSTEM_PROMPT_PREFIX, TASK_TYPE_INSTRUCTIONS, run, _get_purposely_diff
 import uuid
 from django.conf import settings
 from google.genai import types
@@ -207,3 +207,33 @@ class AgentLoopTest(TestCase):
         self.assertEqual(self.session.input_tokens, 20)
         self.assertEqual(self.session.output_tokens, 10)
 
+    @patch('os.path.exists', return_value=True)
+    @patch('agent.sandbox.git_exec') # Patch sandbox.git_exec which is called by _get_purposely_diff
+    def test_get_purposely_diff_short(self, mock_git_exec, mock_os_path_exists):
+        mock_git_exec.side_effect = [
+            {'stdout': 'purposely/purposely-web'},  # For `git remote get-url origin`
+            {'stdout': "short diff"}  # For `git diff origin/main...HEAD`
+        ]
+        diff = _get_purposely_diff(MagicMock())
+        self.assertEqual(diff, "short diff")
+
+    @patch('os.path.exists', return_value=True)
+    @patch('agent.sandbox.git_exec') # Patch sandbox.git_exec which is called by _get_purposely_diff
+    def test_get_purposely_diff_long(self, mock_git_exec, mock_os_path_exists):
+        long_diff = "a\n" * 7000  # Create a diff longer than 12000 characters (7000 lines * 2 chars/line = 14000 chars)
+        mock_git_exec.side_effect = [
+            {'stdout': 'purposely/purposely-web'},  # For `git remote get-url origin`
+            {'stdout': long_diff}  # For `git diff origin/main...HEAD`
+        ]
+        diff = _get_purposely_diff(MagicMock())
+        self.assertLess(len(diff), len(long_diff))
+        self.assertIn("... (", diff)
+        self.assertIn(" more lines truncated)", diff)
+
+    @patch('agent.sandbox.git_exec') # Patch sandbox.git_exec which is called by _get_purposely_diff
+    def test_get_purposely_diff_no_repo(self, mock_git_exec):
+        mock_session_dir = MagicMock()
+        mock_session_dir.__truediv__.return_value.exists.return_value = False # Mock the exists() call on purposely_dir
+        diff = _get_purposely_diff(mock_session_dir)
+        self.assertIsNone(diff)
+        mock_git_exec.assert_not_called()
