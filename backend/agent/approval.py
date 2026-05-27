@@ -10,26 +10,28 @@ With gunicorn sync workers (default), increase --threads.
 import threading
 
 _events: dict[str, threading.Event] = {}
-_decisions: dict[str, bool] = {}
+_decisions: dict[str, tuple[bool, dict | None]] = {}
 _lock = threading.Lock()
 
 
-def wait_for_approval(session_id: str, timeout: int = 300) -> bool:
+def wait_for_approval(session_id: str, timeout: int = 300) -> tuple[bool, dict | None]:
     key = str(session_id)
     ev = threading.Event()
     with _lock:
         _events[key] = ev
-    approved = ev.wait(timeout=timeout)  # False = timed out
+    timed_out = not ev.wait(timeout=timeout)
     with _lock:
-        result = _decisions.pop(key, False)
+        approved, args = _decisions.pop(key, (False, None))
         _events.pop(key, None)
-    return result and approved
+    if timed_out:
+        return False, None
+    return approved, args
 
 
-def respond(session_id: str, approved: bool):
+def respond(session_id: str, approved: bool, args: dict | None = None):
     key = str(session_id)
     with _lock:
-        _decisions[key] = approved
+        _decisions[key] = (approved, args)
         ev = _events.get(key)
     if ev:
         ev.set()

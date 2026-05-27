@@ -445,9 +445,9 @@ export default function App() {
     if (openChat === id) setOpenChat(null);
   }, [openChat]);
 
-  const approve = useCallback((sessionId, approved) => {
+  const approve = useCallback((sessionId, approved, args = null) => {
     setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, pendingApproval: null } : s));
-    approveAction(sessionId, approved);
+    approveAction(sessionId, approved, args);
   }, []);
 
   const handleTriageAction = useCallback(async (id, action) => {
@@ -671,7 +671,7 @@ export default function App() {
           session={openChatSession}
           onClose={() => setOpenChat(null)}
           onSend={prompt => send(openChat, prompt)}
-          onApprove={() => approve(openChat, true)}
+          onApprove={args => approve(openChat, true, args)}
           onReject={() => approve(openChat, false)}
           onDelete={handleDelete}
         />

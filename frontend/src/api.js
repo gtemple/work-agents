@@ -45,8 +45,10 @@ export async function uploadFiles(sessionId, files) {
   return res.json();
 }
 
-export async function approveAction(sessionId, approved) {
-  await post(`/api/sessions/${sessionId}/approve/`, { approved });
+export async function approveAction(sessionId, approved, args = null) {
+  const body = { approved };
+  if (args) body.args = args;
+  await post(`/api/sessions/${sessionId}/approve/`, body);
 }
 
 export async function stopSession(sessionId) {

@@ -440,6 +440,9 @@ def run(session, prompt: str, skip_gated: bool = False):
 
         history.append(content)
 
+        # Extract any reasoning text the model included alongside the function calls
+        reasoning = ' '.join(p.text for p in content.parts if p.text).strip()
+
         tool_response_parts = []
         for part in function_calls:
             fc = part.function_call
@@ -452,7 +455,7 @@ def run(session, prompt: str, skip_gated: bool = False):
                 session.save(update_fields=['pending_plan'])
                 _save_global_event(session, 'plan_ready', args)
                 yield {'type': 'plan_ready', 'payload': args}
-                approved = approval.wait_for_approval(session.id)
+                approved, _ = approval.wait_for_approval(session.id)
                 session.pending_plan = None
                 session.save(update_fields=['pending_plan'])
                 if not approved:
@@ -469,9 +472,13 @@ def run(session, prompt: str, skip_gated: bool = False):
                 approval_payload = {'tool': tool_name, 'args': args}
                 if diff:
                     approval_payload['diff'] = diff
+                if reasoning:
+                    approval_payload['reasoning'] = reasoning
                 _save_global_event(session, 'approval_required', approval_payload)
                 yield {'type': 'approval_required', 'payload': approval_payload}
-                approved = approval.wait_for_approval(session.id)
+                approved, modified_args = approval.wait_for_approval(session.id)
+                if modified_args:
+                    args = modified_args
                 if not approved:
                     result_text = f'Action "{tool_name}" was rejected by the user.'
                     _save_global_event(session, 'approval_rejected', {'tool': tool_name})

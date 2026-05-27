@@ -484,6 +484,14 @@ body::before {
 .chat-row.question .q-opts button:hover { color: var(--accent); border-color: var(--accent); background: rgba(230,179,74,.08); }
 .chat-row.question .q-opts button.primary { background: rgba(230,179,74,.12); border-color: rgba(230,179,74,.4); color: var(--accent); }
 .chat-row.question .q-wait { margin-top: 8px; font-size: 10px; color: var(--fg-4); letter-spacing: .04em; }
+.chat-row.question .q-reasoning { color: var(--fg-3); font-size: 11.5px; font-style: italic; margin-bottom: 8px; padding: 6px 10px; border-left: 2px solid rgba(230,179,74,.3); }
+.chat-row.question .q-args { margin: 8px 0; }
+.chat-row.question .q-args-label { font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--fg-4); margin-bottom: 4px; }
+.chat-row.question .q-args-hint { color: var(--accent); opacity: 0.7; margin-left: 6px; }
+.chat-row.question .q-args textarea { width: 100%; background: var(--bg); border: 1px solid var(--line-2); color: var(--fg-2); font: inherit; font-size: 11px; padding: 6px 8px; border-radius: var(--r); resize: vertical; min-height: 40px; }
+.chat-row.question .q-args textarea:focus { border-color: rgba(230,179,74,.5); outline: none; }
+.chat-row.question .q-args textarea.error { border-color: var(--err); }
+.chat-row.question .q-args-error { font-size: 10.5px; color: var(--err); margin-top: 4px; }
 .chat-row.live .glyph { color: var(--accent); }
 .chat-row.live .msg { color: var(--fg-3); font-size: 11.5px; }
 .chat-row.live .msg::before { content: "agent"; display: inline-block; font-size: 10px; letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-right: 8px; }

@@ -308,7 +308,8 @@ def stream_agent(request, session_id):
 def approve_action(request, session_id):
     data = json.loads(request.body or '{}')
     approved = data.get('approved', False)
-    approval_mod.respond(session_id, approved)
+    modified_args = data.get('args') or None
+    approval_mod.respond(session_id, approved, modified_args)
     return JsonResponse({'ok': True})
 
 

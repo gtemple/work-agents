@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { argsSummary, fmtNow } from '../utils';
 import { stopSession } from '../api';
@@ -34,15 +34,16 @@ function buildRows(session) {
       const bullets = [];
       if (pa.files_to_change?.length) bullets.push(`Files: ${pa.files_to_change.join(', ')}`);
       if (pa.steps?.length) pa.steps.forEach(s => bullets.push(s));
-      rows.push({ kind: 'question', t: fmtNow(), isApproval: true,
+      rows.push({ kind: 'question', t: fmtNow(), isApproval: true, isPlan: true,
         text: pa.summary || 'Implementation plan ready for review.',
         bullets: bullets.length ? bullets : undefined,
         ask: 'Approve and proceed, or revise?',
         options: ['Approve', 'Revise plan'] });
     } else {
-      rows.push({ kind: 'question', t: fmtNow(), isApproval: true,
+      rows.push({ kind: 'question', t: fmtNow(), isApproval: true, isPlan: false,
         text: `Approval required: ${pa.tool}`,
-        bullets: [argsSummary(pa.tool, pa.args || {}) || pa.tool].filter(Boolean),
+        reasoning: pa.reasoning,
+        args: pa.args,
         options: ['Approve', 'Reject'] });
     }
   }
@@ -52,7 +53,7 @@ function buildRows(session) {
   return rows;
 }
 
-function ChatRow({ m, onApprove, onReject, expanded, onToggle }) {
+function ChatRow({ m, onApprove, onReject, expanded, onToggle, argsDraft, onArgsDraftChange, argsDraftError }) {
   if (m.kind === 'user') return (
     <div className="chat-row user">
       <span className="ts">{m.t}</span><span className="glyph">▸</span>
@@ -104,7 +105,21 @@ function ChatRow({ m, onApprove, onReject, expanded, onToggle }) {
       <span className="ts">{m.t}</span><span className="glyph">?</span>
       <span className="msg">
         <div className="q-text">{m.text}</div>
+        {m.reasoning && <div className="q-reasoning">{m.reasoning}</div>}
         {m.bullets && <ul className="q-bullets">{m.bullets.map((b, i) => <li key={i}>{b}</li>)}</ul>}
+        {!m.isPlan && argsDraft !== undefined && (
+          <div className="q-args">
+            <div className="q-args-label">args <span className="q-args-hint">editable</span></div>
+            <textarea
+              className={argsDraftError ? 'error' : ''}
+              value={argsDraft}
+              onChange={e => onArgsDraftChange(e.target.value)}
+              rows={Math.min(12, (argsDraft || '').split('\n').length + 1)}
+              spellCheck={false}
+            />
+            {argsDraftError && <div className="q-args-error">invalid JSON — fix before approving</div>}
+          </div>
+        )}
         {m.ask && <div className="q-ask">{m.ask}</div>}
         {m.options && (
           <div className="q-opts">
@@ -131,8 +146,34 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
   const [draft, setDraft] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
+  const [argsDraft, setArgsDraft] = useState('');
+  const [argsDraftError, setArgsDraftError] = useState(false);
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
+
+  const pa = session?.pendingApproval;
+  useEffect(() => {
+    if (pa && pa.event_type !== 'plan' && pa.args) {
+      setArgsDraft(JSON.stringify(pa.args, null, 2));
+    } else {
+      setArgsDraft('');
+    }
+    setArgsDraftError(false);
+  }, [pa?.tool]);
+
+  const handleApprove = useCallback(() => {
+    if (pa && pa.event_type !== 'plan') {
+      try {
+        const parsed = JSON.parse(argsDraft);
+        setArgsDraftError(false);
+        onApprove(parsed);
+      } catch {
+        setArgsDraftError(true);
+      }
+    } else {
+      onApprove(null);
+    }
+  }, [pa, argsDraft, onApprove]);
 
   const toggleGroup = (id) => setExpandedGroups(prev => {
     const next = new Set(prev);
@@ -213,10 +254,13 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
         )}
         {rows.map((m, i) => (
           <ChatRow key={i} m={m}
-            onApprove={m.isApproval ? onApprove : null}
+            onApprove={m.isApproval ? handleApprove : null}
             onReject={m.isApproval ? onReject : null}
             expanded={m.groupId != null && expandedGroups.has(m.groupId)}
             onToggle={m.groupId != null ? () => toggleGroup(m.groupId) : undefined}
+            argsDraft={m.isApproval && !m.isPlan ? argsDraft : undefined}
+            onArgsDraftChange={m.isApproval && !m.isPlan ? setArgsDraft : undefined}
+            argsDraftError={argsDraftError}
           />
         ))}
         {isRunning && (
