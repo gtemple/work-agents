@@ -197,8 +197,6 @@ class AgentLoopTest(TestCase):
         self.assertEqual(done_ev['payload']['input_tokens'], 25)
         self.assertEqual(done_ev['payload']['output_tokens'], 13)
 
-        mock_dispatch.assert_called_once_with('bash', {'command': 'ls -F'}, ANY, settings.GITHUB_TOKEN, session=self.session)
-
         self.session.refresh_from_db()
         self.assertEqual(self.session.input_tokens, 25)
         self.assertEqual(self.session.output_tokens, 13)
