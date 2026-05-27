@@ -264,11 +264,24 @@ def run(session, prompt: str, skip_gated: bool = False):
         files = [f.name for f in session_dir.iterdir() if f.is_file()]
         if files:
             context_parts.append(f'Uploaded files: {", ".join(files)}')
-        dirs = [d.name for d in session_dir.iterdir() if d.is_dir() and (d / '.git').exists()]
-        if dirs:
-            context_parts.append(f'Cloned repos: {", ".join(dirs)}')
+        repo_summaries = []
+        for d in session_dir.iterdir():
+            if not d.is_dir() or not (d / '.git').exists():
+                continue
+            from . import sandbox as _sandbox
+            branch = (_sandbox.git_exec('git branch --show-current', d).get('stdout') or '').strip()
+            log = (_sandbox.git_exec('git log --oneline -5', d).get('stdout') or '').strip()
+            status = (_sandbox.git_exec('git status --short', d).get('stdout') or '').strip()
+            summary = f'Repo: {d.name}/ (branch: {branch or "unknown"})'
+            if log:
+                summary += f'\nRecent commits:\n{log}'
+            if status:
+                summary += f'\nUncommitted changes:\n{status}'
+            repo_summaries.append(summary)
+        if repo_summaries:
+            context_parts.append('\n'.join(repo_summaries))
         if context_parts:
-            prompt = f'[Session context — {"; ".join(context_parts)}]\n\n{prompt}'
+            prompt = f'[Session workspace state — pick up where you left off, do not redo completed work]\n{chr(10).join(context_parts)}\n\n{prompt}'
 
     history.append(types.Content(role='user', parts=[types.Part(text=prompt)]))
 
