@@ -3,28 +3,34 @@ import ReactMarkdown from 'react-markdown';
 import { argsSummary } from '../utils';
 import { stopSession } from '../api';
 
-function fmt() {
+function fmtNow() {
   const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
+function fmtIso(iso) {
+  if (!iso) return '—';
+  const d = new Date(iso), p = n => String(n).padStart(2, '0');
   return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
 }
 
 function buildRows(session) {
   const rows = [];
   for (const msg of (session.messages || [])) {
+    const ts = fmtIso(msg.created_at);
     if (msg.role === 'user') {
-      rows.push({ kind: 'user', t: '—', text: msg.content });
+      rows.push({ kind: 'user', t: ts, text: msg.content });
     } else {
-      for (const step of (msg.steps || [])) {
-        if (step.step_type === 'tool_call') {
-          rows.push({ kind: 'tool', t: '—', tool: step.data.tool, args: argsSummary(step.data.tool, step.data.args || {}) });
-        }
+      const toolCalls = (msg.steps || []).filter(s => s.step_type === 'tool_call');
+      if (toolCalls.length > 0) {
+        rows.push({ kind: 'tool_group', t: ts, tools: toolCalls, groupId: msg.id ?? `g-${rows.length}` });
       }
-      if (msg.content) rows.push({ kind: 'agent', t: '—', text: msg.content });
+      if (msg.content) rows.push({ kind: 'agent', t: ts, text: msg.content });
     }
   }
   for (const step of (session.liveSteps || [])) {
     if (step.step_type === 'tool_call') {
-      rows.push({ kind: 'tool', t: fmt(), tool: step.data.tool, args: argsSummary(step.data.tool, step.data.args || {}) });
+      rows.push({ kind: 'tool', t: step.t || fmtNow(), tool: step.data.tool, args: argsSummary(step.data.tool, step.data.args || {}) });
     }
   }
   if (session.pendingApproval) {
@@ -33,25 +39,25 @@ function buildRows(session) {
       const bullets = [];
       if (pa.files_to_change?.length) bullets.push(`Files: ${pa.files_to_change.join(', ')}`);
       if (pa.steps?.length) pa.steps.forEach(s => bullets.push(s));
-      rows.push({ kind: 'question', t: fmt(), isApproval: true,
+      rows.push({ kind: 'question', t: fmtNow(), isApproval: true,
         text: pa.summary || 'Implementation plan ready for review.',
         bullets: bullets.length ? bullets : undefined,
         ask: 'Approve and proceed, or revise?',
         options: ['Approve', 'Revise plan'] });
     } else {
-      rows.push({ kind: 'question', t: fmt(), isApproval: true,
+      rows.push({ kind: 'question', t: fmtNow(), isApproval: true,
         text: `Approval required: ${pa.tool}`,
         bullets: [argsSummary(pa.tool, pa.args || {}) || pa.tool].filter(Boolean),
         options: ['Approve', 'Reject'] });
     }
   }
   if (session.liveText) {
-    rows.push({ kind: 'live', t: fmt(), text: session.liveText });
+    rows.push({ kind: 'live', t: fmtNow(), text: session.liveText });
   }
   return rows;
 }
 
-function ChatRow({ m, onApprove, onReject }) {
+function ChatRow({ m, onApprove, onReject, expanded, onToggle }) {
   if (m.kind === 'user') return (
     <div className="chat-row user">
       <span className="ts">{m.t}</span><span className="glyph">▸</span>
@@ -64,15 +70,36 @@ function ChatRow({ m, onApprove, onReject }) {
       <span className="msg markdown"><ReactMarkdown>{m.text}</ReactMarkdown></span>
     </div>
   );
-  if (m.kind === 'tool') {
-    const isWarn = /fail|error/i.test(m.result || '');
+  if (m.kind === 'tool_group') {
+    const n = m.tools.length;
     return (
-      <div className={`chat-row tool${isWarn ? ' warn' : ''}`}>
+      <div className="chat-row tool">
+        <span className="ts">{m.t}</span><span className="glyph">⚒</span>
+        <span className="msg">
+          <button className="tool-group-toggle" onClick={onToggle}>
+            {n} tool call{n !== 1 ? 's' : ''} <span style={{ opacity: 0.5 }}>{expanded ? '▾' : '▸'}</span>
+          </button>
+          {expanded && (
+            <div className="tool-group-items">
+              {m.tools.map((step, i) => (
+                <div key={i} className="tool-group-item">
+                  <span className="tool-name">{step.data.tool}</span>
+                  {step.data.args && <span className="tool-args">{argsSummary(step.data.tool, step.data.args)}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </span>
+      </div>
+    );
+  }
+  if (m.kind === 'tool') {
+    return (
+      <div className="chat-row tool">
         <span className="ts">{m.t}</span><span className="glyph">⚒</span>
         <span className="msg">
           <span className="tool-name">{m.tool}</span>
           {m.args && <span className="tool-args">{m.args}</span>}
-          {m.result && <><span className="tool-arrow">→</span><span className="tool-result">{m.result}</span></>}
         </span>
       </div>
     );
@@ -108,8 +135,15 @@ function ChatRow({ m, onApprove, onReject }) {
 export default function ChatView({ session, onClose, onSend, onApprove, onReject, onDelete }) {
   const [draft, setDraft] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [expandedGroups, setExpandedGroups] = useState(new Set());
   const bodyRef = useRef(null);
   const inputRef = useRef(null);
+
+  const toggleGroup = (id) => setExpandedGroups(prev => {
+    const next = new Set(prev);
+    next.has(id) ? next.delete(id) : next.add(id);
+    return next;
+  });
 
   // Auto-grow textarea
   useEffect(() => {
@@ -183,7 +217,12 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
           </div>
         )}
         {rows.map((m, i) => (
-          <ChatRow key={i} m={m} onApprove={m.isApproval ? onApprove : null} onReject={m.isApproval ? onReject : null} />
+          <ChatRow key={i} m={m}
+            onApprove={m.isApproval ? onApprove : null}
+            onReject={m.isApproval ? onReject : null}
+            expanded={m.groupId != null && expandedGroups.has(m.groupId)}
+            onToggle={m.groupId != null ? () => toggleGroup(m.groupId) : undefined}
+          />
         ))}
         {isRunning && (
           <div className="chat-row live">

@@ -228,8 +228,10 @@ export default function App() {
             if (ev.event_type === 'tool_call') {
               setSessions(prev => prev.map(s => {
                 if (s.id !== ev.session_id || ev.id <= s.eventsLoadedUpTo) return s;
+                const d = new Date(ev.created_at), p = n => String(n).padStart(2, '0');
+                const evT = `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
                 return { ...s, status: 'running', startedAt: s.startedAt ?? Date.now(),
-                  liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args } }],
+                  liveSteps: [...s.liveSteps, { step_type: 'tool_call', data: { tool: ev.data.tool, args: ev.data.args }, t: evT }],
                   stepCount: s.stepCount + 1 };
               }));
             }
@@ -367,7 +369,7 @@ export default function App() {
     setSessions(prev => prev.map(s =>
       s.id === sessionId
         ? { ...s, status: 'running', liveSteps: [], liveText: '', stepCount: 0, startedAt: Date.now(),
-            messages: [...s.messages, { role: 'user', content: prompt, steps: [] }] }
+            messages: [...s.messages, { role: 'user', content: prompt, steps: [], created_at: new Date().toISOString() }] }
         : s
     ));
     const acc = { steps: [], text: '' };
@@ -375,13 +377,13 @@ export default function App() {
     const feedLine = (lvl, msg) => setFeed(prev => [...prev, { t: fmtT(), agent: agentLabel, lvl, msg }].slice(-80));
     const es = streamAgent(sessionId, prompt, ev => {
       if (ev.type === 'tool_call') {
-        acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload }];
+        acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload, t: fmtT() }];
         feedLine('tool', `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim());
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length } : s
         ));
       } else if (ev.type === 'tool_result') {
-        acc.steps = [...acc.steps, { step_type: 'tool_result', data: ev.payload }];
+        acc.steps = [...acc.steps, { step_type: 'tool_result', data: ev.payload, t: fmtT() }];
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveSteps: acc.steps } : s));
       } else if (ev.type === 'tokens') {
         setSessions(prev => prev.map(s =>
@@ -432,7 +434,7 @@ export default function App() {
         setSessions(prev => prev.map(s =>
           s.id === sessionId
             ? { ...s, status: 'error', liveSteps: [], liveText: '', pendingApproval: null,
-                messages: [...s.messages, { role: 'assistant', content: `Error: ${ev.payload.message}`, steps: [] }] }
+                messages: [...s.messages, { role: 'assistant', content: `Error: ${ev.payload.message}`, steps: acc.steps }] }
             : s
         ));
         setToasts(prev => [...prev, { id: sessionId, title: sess?.title || sess?.linear_issue_key || 'Agent', color: '#ef4444', stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length }]);
