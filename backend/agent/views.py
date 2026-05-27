@@ -674,7 +674,17 @@ def _action_item_dict(item):
 
 @require_http_methods(['GET'])
 def list_action_items(request):
-    from .models import ActionItem
+    from .models import ActionItem, UserContext
+    from datetime import timedelta
+
+    # Auto-refresh if stale (> 23 hours since last run)
+    ctx = UserContext.get()
+    if not ctx.suggestions_generated_at or \
+            (timezone.now() - ctx.suggestions_generated_at) > timedelta(hours=23):
+        from . import suggestions as sug
+        import threading
+        threading.Thread(target=sug.daily_refresh, daemon=True).start()
+
     active = ActionItem.objects.filter(status='active').order_by('type', 'queue_position')
     saved  = ActionItem.objects.filter(status='saved').order_by('-created_at')
     return JsonResponse({
