@@ -723,7 +723,7 @@ def action_item_act(request, item_id, action):
     elif action == 'investigate':
         from .models import RepoMemory, UserContext
 
-        # Build an enriched system prompt with relevant context
+        # Build context into system_prompt so the agent has it from turn one
         ctx_parts = [f'**{item.title}**\n\n{item.description}']
         if item.repo:
             try:
@@ -735,6 +735,12 @@ def action_item_act(request, item_id, action):
         user_ctx = UserContext.get()
         if user_ctx.content.strip():
             ctx_parts.append(f'## About the user\n{user_ctx.content}')
+        if item.repo:
+            repo_name = item.repo.split('/')[-1]
+            ctx_parts.append(
+                f'## Relevant repo\n`{item.repo}` — use `clone_repo {item.repo}` '
+                f'to clone it, then explore inside `{repo_name}/`.'
+            )
 
         session = Session.objects.create(
             title=item.title,
@@ -745,34 +751,6 @@ def action_item_act(request, item_id, action):
         item.status = 'saved'
         item.save(update_fields=['session', 'status'])
         threading.Thread(target=_refill, daemon=True).start()
-
-        repo_instruction = ''
-        if item.repo:
-            repo_name = item.repo.split('/')[-1]
-            repo_instruction = (
-                f'\n\nThe relevant repo is `{item.repo}`. '
-                f'Clone it first with `clone_repo {item.repo}`, '
-                f'then explore the code inside `{repo_name}/`.'
-            )
-
-        initial_prompt = (
-            f'Investigate this idea: {item.title}\n\n'
-            f'{item.description}'
-            f'{repo_instruction}\n\n'
-            f'Share your findings and suggest concrete next steps.'
-        )
-
-        def _run_investigate():
-            import django.db
-            try:
-                for _ in agent_loop.run(session, initial_prompt):
-                    pass
-            except Exception:
-                pass
-            finally:
-                django.db.close_old_connections()
-
-        threading.Thread(target=_run_investigate, daemon=True).start()
         return JsonResponse({'session_id': str(session.id)})
 
     elif action == 'refresh':
