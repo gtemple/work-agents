@@ -9,6 +9,7 @@ from . import approval
 
 GATED_TOOLS = {'git_push', 'create_pr', 'post_pr_review'}
 PLAN_TOOLS = {'submit_plan'}
+MAX_ITER = 80
 
 # Session IDs that have been requested to stop
 _cancel_requested = set()
@@ -293,8 +294,15 @@ def run(session, prompt: str, skip_gated: bool = False):
     base_output_tokens = session.output_tokens
     assistant_message_saved = False
     clear_cancel(session.id)
+    iteration = 0
 
     while True:
+        iteration += 1
+        if iteration > MAX_ITER:
+            msg = f'Reached maximum iteration limit ({MAX_ITER}). Stopping to prevent runaway loop.'
+            _save_global_event(session, 'error', {'message': msg})
+            yield {'type': 'error', 'payload': {'message': msg}}
+            return
         if str(session.id) in _cancel_requested:
             clear_cancel(session.id)
             yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}

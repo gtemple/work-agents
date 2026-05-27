@@ -118,10 +118,8 @@ DECLARATIONS = [
         'parameters': {
             'type': 'object',
             'properties': {
-                'name': {
-                    'type': 'string',
-                    'description': 'Name for the new branch, e.g. "feature/add-login"',
-                },
+                'name': {'type': 'string', 'description': 'Name for the new branch, e.g. "feature/add-login"'},
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir (e.g. "work-agents"). Required when multiple repos are cloned.'},
             },
             'required': ['name'],
         },
@@ -131,7 +129,9 @@ DECLARATIONS = [
         'description': 'Show the current git status of the repository (modified, staged, untracked files).',
         'parameters': {
             'type': 'object',
-            'properties': {},
+            'properties': {
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir. Required when multiple repos are cloned.'},
+            },
         },
     },
     {
@@ -139,7 +139,9 @@ DECLARATIONS = [
         'description': 'Show a diff of all changes made since the last commit.',
         'parameters': {
             'type': 'object',
-            'properties': {},
+            'properties': {
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir. Required when multiple repos are cloned.'},
+            },
         },
     },
     {
@@ -148,10 +150,8 @@ DECLARATIONS = [
         'parameters': {
             'type': 'object',
             'properties': {
-                'message': {
-                    'type': 'string',
-                    'description': 'Commit message',
-                },
+                'message': {'type': 'string', 'description': 'Commit message'},
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir. Required when multiple repos are cloned.'},
             },
             'required': ['message'],
         },
@@ -161,7 +161,9 @@ DECLARATIONS = [
         'description': 'Push the current branch to the GitHub remote.',
         'parameters': {
             'type': 'object',
-            'properties': {},
+            'properties': {
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir. Required when multiple repos are cloned.'},
+            },
         },
     },
     {
@@ -270,18 +272,10 @@ DECLARATIONS = [
         'parameters': {
             'type': 'object',
             'properties': {
-                'title': {
-                    'type': 'string',
-                    'description': 'PR title',
-                },
-                'body': {
-                    'type': 'string',
-                    'description': 'PR description in markdown',
-                },
-                'base_branch': {
-                    'type': 'string',
-                    'description': 'Branch to merge into, e.g. "main" or "master"',
-                },
+                'title': {'type': 'string', 'description': 'PR title'},
+                'body': {'type': 'string', 'description': 'PR description in markdown'},
+                'base_branch': {'type': 'string', 'description': 'Branch to merge into, e.g. "main" or "master"'},
+                'repo': {'type': 'string', 'description': 'Repo folder name within session dir. Required when multiple repos are cloned.'},
             },
             'required': ['title', 'body', 'base_branch'],
         },
@@ -457,6 +451,18 @@ DECLARATIONS = [
             'required': [],
         },
     },
+    {
+        'name': 'read_logs',
+        'description': 'Read the last N lines from a background process log. Use the process_id returned by start_process or list_processes.',
+        'parameters': {
+            'type': 'object',
+            'properties': {
+                'process_id': {'type': 'integer', 'description': 'Process ID from start_process or list_processes'},
+                'lines': {'type': 'integer', 'description': 'Number of lines to read from the end (default 50)'},
+            },
+            'required': ['process_id'],
+        },
+    },
 ]
 
 
@@ -551,7 +557,7 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         return f'Cloned {slug} into {clone_dir.name}/ ({source})\n\n{context}{env_note}'
 
     elif tool_name == 'git_branch':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found — clone a repo first with clone_repo'
         name = args['name']
@@ -561,21 +567,21 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         return f'Switched to new branch: {name}'
 
     elif tool_name == 'git_status':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found'
         result = sandbox.git_exec('git status', git_root)
         return result['stdout'] or result['stderr']
 
     elif tool_name == 'git_diff':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found'
         result = sandbox.git_exec('git diff HEAD', git_root)
         return result['stdout'][:8000] or '(no changes)'
 
     elif tool_name == 'git_commit':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found'
         message = args['message'].replace('"', '\\"')
@@ -585,7 +591,7 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         return result['stdout']
 
     elif tool_name == 'git_push':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found'
         branch_result = sandbox.git_exec('git rev-parse --abbrev-ref HEAD', git_root)
@@ -599,7 +605,7 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
         return out or 'Pushed successfully'
 
     elif tool_name == 'create_pr':
-        git_root = gh.find_git_root(session_dir)
+        git_root = gh.find_git_root(session_dir, args.get('repo'))
         if not git_root:
             return 'Error: no git repository found'
         return gh.create_pull_request(
@@ -693,8 +699,14 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
             try:
                 for _ in _agent_loop.run(task_session, args['prompt']):
                     pass
-            except Exception:
-                pass
+            except Exception as e:
+                try:
+                    GlobalEvent.objects.create(
+                        session=task_session, event_type='error',
+                        data={'message': str(e)[:500]},
+                    )
+                except Exception:
+                    pass
             finally:
                 django.db.close_old_connections()
 
@@ -807,6 +819,23 @@ def dispatch(tool_name: str, args: dict, session_dir: Path, github_token: str = 
             url_str = f' — port {p.port}' if p.port else ''
             lines.append(f'[id={p.id}] {p.label} ({p.status}){url_str} | PID {p.pid} | {p.command}')
         return '\n'.join(lines)
+
+    elif tool_name == 'read_logs':
+        from .models import Process as ProcessModel
+        process_id = int(args['process_id'])
+        lines = min(int(args.get('lines', 50)), 500)
+        try:
+            db_proc = ProcessModel.objects.get(id=process_id)
+        except ProcessModel.DoesNotExist:
+            return f'Process {process_id} not found.'
+        if not db_proc.log_file or not Path(db_proc.log_file).exists():
+            return 'No log file available.'
+        try:
+            with open(db_proc.log_file) as f:
+                all_lines = f.readlines()
+            return ''.join(all_lines[-lines:])[:4000] or '(empty log)'
+        except Exception as e:
+            return f'Error reading log: {e}'
 
     elif tool_name == 'submit_plan':
         # Handled specially in agent_loop — dispatch should never be called for this

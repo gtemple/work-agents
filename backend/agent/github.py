@@ -67,8 +67,16 @@ def get_repo_context(repo_root: Path) -> str:
     return '\n\n'.join(parts)
 
 
-def find_git_root(session_dir: Path) -> Path | None:
-    """Find the git repo root within session_dir (checks session_dir itself, then one level deep)."""
+def find_git_root(session_dir: Path, repo: str | None = None) -> Path | None:
+    """Find the git repo root within session_dir.
+
+    If repo is given, look for session_dir/<repo>/.git first (exact folder name match).
+    Otherwise fall back to checking session_dir itself, then the first subdirectory with .git.
+    """
+    if repo:
+        candidate = session_dir / repo
+        if (candidate / '.git').exists():
+            return candidate
     if (session_dir / '.git').exists():
         return session_dir
     if session_dir.exists():

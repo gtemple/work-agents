@@ -43,12 +43,16 @@ LANGUAGE_COMMANDS = {
 }
 
 
+_TIMEOUTS = {'bash': 300, 'sh': 300}
+
+
 def execute(language: str, code: str, cwd: Path) -> dict:
     cmd_prefix = LANGUAGE_COMMANDS.get(language.lower())
     if not cmd_prefix:
         return {'stdout': '', 'stderr': f'Unsupported language: {language}', 'exit_code': 1}
 
     cwd.mkdir(parents=True, exist_ok=True)
+    timeout = _TIMEOUTS.get(language.lower(), 60)
 
     try:
         result = subprocess.run(
@@ -56,7 +60,7 @@ def execute(language: str, code: str, cwd: Path) -> dict:
             cwd=str(cwd),
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=timeout,
         )
         return {
             'stdout': result.stdout[:8000],
@@ -64,6 +68,6 @@ def execute(language: str, code: str, cwd: Path) -> dict:
             'exit_code': result.returncode,
         }
     except subprocess.TimeoutExpired:
-        return {'stdout': '', 'stderr': 'Execution timed out (30s limit)', 'exit_code': 124}
+        return {'stdout': '', 'stderr': f'Execution timed out ({timeout}s limit)', 'exit_code': 124}
     except FileNotFoundError:
         return {'stdout': '', 'stderr': f'Runtime not found for language: {language}', 'exit_code': 1}

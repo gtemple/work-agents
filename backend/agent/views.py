@@ -25,8 +25,15 @@ def _start_planning_thread(session):
             )
             for _ in agent_loop.run(session, prompt):
                 pass
-        except Exception:
-            pass
+        except Exception as e:
+            try:
+                from .models import GlobalEvent
+                GlobalEvent.objects.create(
+                    session=session, event_type='error',
+                    data={'message': str(e)[:500]},
+                )
+            except Exception:
+                pass
         finally:
             django.db.close_old_connections()
 
