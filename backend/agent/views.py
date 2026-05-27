@@ -676,6 +676,7 @@ def _action_item_dict(item):
 def list_action_items(request):
     from .models import ActionItem, UserContext
     from datetime import timedelta
+    from django.utils import timezone
 
     # Auto-refresh if stale (> 23 hours since last run)
     ctx = UserContext.get()
