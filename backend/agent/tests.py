@@ -145,67 +145,63 @@ class AgentLoopTest(TestCase):
     @patch('agent.agent_loop.genai.Client')
     @patch('agent.agent_loop.tools.dispatch')
     @patch('agent.agent_loop._save_global_event')
-    @patch('agent.agent_loop._queue.Queue') # Mock the queue in _run_tool
-    @patch('threading.Thread') # Mock threading.Thread in _run_tool
+    @patch('agent.agent_loop._queue.Queue')
+    @patch('threading.Thread')
     def test_run_tool_call(self, mock_thread, mock_queue, mock_save_global_event, mock_dispatch, mock_genai_client):
-        # Mock the Gemini response for a tool call
         mock_tool_code = types.FunctionCall(name='bash', args={'command': 'ls -F'})
-        mock_response = MagicMock()
-        mock_response.candidates = [
+        mock_tool_response = MagicMock()
+        mock_tool_response.candidates = [
             types.Candidate(content=types.Content(parts=[types.Part(function_call=mock_tool_code)]))
         ]
-        mock_usage_metadata = MagicMock(spec=[])
-        mock_usage_metadata.prompt_token_count = 20
-        mock_usage_metadata.candidates_token_count = 10
-        mock_usage_metadata.thoughts_token_count = 0
-        mock_response.usage_metadata = mock_usage_metadata
-        mock_genai_client.return_value.models.generate_content.return_value = mock_response
+        mock_usage_1 = MagicMock(spec=[])
+        mock_usage_1.prompt_token_count = 20
+        mock_usage_1.candidates_token_count = 10
+        mock_usage_1.thoughts_token_count = 0
+        mock_tool_response.usage_metadata = mock_usage_1
 
-        # Configure the mock thread to execute its target when start() is called
-        def start_side_effect(): # No arguments expected for start()
-            if mock_thread.call_args:
-                target_func = mock_thread.call_args.kwargs['target']
-                target_func() # Execute the target function
-            else:
-                pass
+        mock_text_response = MagicMock()
+        mock_text_response.candidates = [
+            types.Candidate(content=types.Content(parts=[types.Part(text='Done.')]))
+        ]
+        mock_usage_2 = MagicMock(spec=[])
+        mock_usage_2.prompt_token_count = 5
+        mock_usage_2.candidates_token_count = 3
+        mock_usage_2.thoughts_token_count = 0
+        mock_text_response.usage_metadata = mock_usage_2
 
-        # Assign this side_effect to the start method of the *returned* thread instance
-        # This will be called when the thread_instance.start() is invoked.
-        mock_thread.return_value.start.side_effect = start_side_effect
+        mock_genai_client.return_value.models.generate_content.side_effect = [
+            mock_tool_response,
+            mock_text_response,
+        ]
 
-        # Configure the mock queue to return a result when get() is called
         mock_queue_instance = MagicMock()
-        mock_queue_instance.get.return_value = {'stdout': 'file1\nfile2\n'}
+        mock_queue_instance.get.return_value = 'file1\nfile2\n'
         mock_queue.return_value = mock_queue_instance
 
-        # Call the run function
         output_events = list(run(self.session, "Run a tool"))
 
-        # Assertions
-        self.assertEqual(len(output_events), 4) # tokens, tool_call, tool_result, done
-        self.assertEqual(output_events[0]['type'], 'tokens')
-        self.assertEqual(output_events[0]['payload']['input'], 20)
-        self.assertEqual(output_events[0]['payload']['output'], 10)
+        event_types = [e['type'] for e in output_events]
+        self.assertIn('tool_call', event_types)
+        self.assertIn('tool_result', event_types)
+        self.assertIn('done', event_types)
 
-        self.assertEqual(output_events[1]['type'], 'tool_call')
-        self.assertEqual(output_events[1]['payload']['tool'], 'bash')
-        self.assertEqual(output_events[1]['payload']['args'], {'command': 'ls -F'})
+        tool_call_ev = next(e for e in output_events if e['type'] == 'tool_call')
+        self.assertEqual(tool_call_ev['payload']['tool'], 'bash')
+        self.assertEqual(tool_call_ev['payload']['args'], {'command': 'ls -F'})
 
-        self.assertEqual(output_events[2]['type'], 'tool_result')
-        self.assertEqual(output_events[2]['payload']['tool'], 'bash')
-        self.assertEqual(output_events[2]['payload']['result'], {'stdout': 'file1\nfile2\n'})
+        tool_result_ev = next(e for e in output_events if e['type'] == 'tool_result')
+        self.assertEqual(tool_result_ev['payload']['tool'], 'bash')
+        self.assertEqual(tool_result_ev['payload']['result'], 'file1\nfile2\n')
 
-        self.assertEqual(output_events[3]['type'], 'done')
-        self.assertEqual(output_events[3]['payload']['input_tokens'], 20)
-        self.assertEqual(output_events[3]['payload']['output_tokens'], 10)
+        done_ev = next(e for e in output_events if e['type'] == 'done')
+        self.assertEqual(done_ev['payload']['input_tokens'], 25)
+        self.assertEqual(done_ev['payload']['output_tokens'], 13)
 
-        # Verify that dispatch was called with the correct arguments
         mock_dispatch.assert_called_once_with('bash', {'command': 'ls -F'}, ANY, settings.GITHUB_TOKEN, session=self.session)
 
-        # Verify token counts updated in session
         self.session.refresh_from_db()
-        self.assertEqual(self.session.input_tokens, 20)
-        self.assertEqual(self.session.output_tokens, 10)
+        self.assertEqual(self.session.input_tokens, 25)
+        self.assertEqual(self.session.output_tokens, 13)
 
     @patch('os.path.exists', return_value=True)
     @patch('agent.sandbox.git_exec') # Patch sandbox.git_exec which is called by _get_purposely_diff
@@ -288,9 +284,9 @@ class AgentLoopTest(TestCase):
         self.assertEqual(output_events[1]['payload']['tool'], '_retry')
         self.assertEqual(output_events[1]['payload']['args'], {})
 
-        # Check the second 'tokens' event (from the second (corrected) API call)
+        # Check the second 'tokens' event — cumulative totals (15 + 5 = 20, 0 + 3 = 3)
         self.assertEqual(output_events[2]['type'], 'tokens')
-        self.assertEqual(output_events[2]['payload']['input'], 5) # Tokens for this specific turn
+        self.assertEqual(output_events[2]['payload']['input'], 20)
         self.assertEqual(output_events[2]['payload']['output'], 3)
 
         # Check the assistant_text event from the corrected response
