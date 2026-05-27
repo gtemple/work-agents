@@ -311,9 +311,16 @@ def run(session, prompt: str, skip_gated: bool = False):
         content = candidate.content
 
         if not content or not content.parts:
-            raise ValueError(
-                f'Gemini returned empty content (finish_reason: {getattr(candidate, "finish_reason", "unknown")})'
-            )
+            finish_reason = str(getattr(candidate, 'finish_reason', 'unknown'))
+            if 'MALFORMED_FUNCTION_CALL' in finish_reason:
+                # Gemini generated an invalid tool call — inject a correction and retry
+                yield {'type': 'tool_call', 'payload': {'tool': '_retry', 'args': {}}}
+                history.append(types.Content(role='user', parts=[types.Part(
+                    text='Your last tool call was malformed and could not be parsed. '
+                         'Please try again — use the exact tool names and parameter types from the schema.'
+                )]))
+                continue
+            raise ValueError(f'Gemini returned empty content (finish_reason: {finish_reason})')
 
         function_calls = [
             p for p in content.parts
