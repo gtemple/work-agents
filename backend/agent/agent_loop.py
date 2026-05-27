@@ -241,7 +241,11 @@ def run(session, prompt: str, skip_gated: bool = False):
     model = getattr(session, 'model', None) or settings.GEMINI_MODEL
 
     history = []
-    for msg in session.messages.all():
+    messages = list(session.messages.all())
+    # Trim history for large sessions — keep last 20 messages to avoid context overflow
+    if len(messages) > 20:
+        messages = messages[-20:]
+    for msg in messages:
         role = 'model' if msg.role == 'assistant' else 'user'
         history.append(types.Content(role=role, parts=[types.Part(text=msg.content)]))
 
@@ -320,6 +324,17 @@ def run(session, prompt: str, skip_gated: bool = False):
                          'Please try again — use the exact tool names and parameter types from the schema.'
                 )]))
                 continue
+            if 'STOP' in finish_reason:
+                # Model stopped with no output — treat as empty completed turn
+                text = ''
+                yield {'type': 'assistant_text', 'payload': {'text': text}}
+                from .models import Message, TokenUsage
+                assistant_msg = Message.objects.create(session=session, role='assistant', content=text)
+                assistant_message_saved = True
+                _save_global_event(session, 'done', {'message_id': str(assistant_msg.id)})
+                yield {'type': 'done', 'payload': {'message_id': assistant_msg.id,
+                    'input_tokens': total_input_tokens, 'output_tokens': total_output_tokens}}
+                return
             raise ValueError(f'Gemini returned empty content (finish_reason: {finish_reason})')
 
         function_calls = [
