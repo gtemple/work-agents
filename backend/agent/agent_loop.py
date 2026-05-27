@@ -304,8 +304,16 @@ def run(session, prompt: str, skip_gated: bool = False):
                 output_tokens=base_output_tokens + total_output_tokens,
             )
 
+        if not response.candidates:
+            raise ValueError('Gemini returned no candidates — response may have been blocked')
+
         candidate = response.candidates[0]
         content = candidate.content
+
+        if not content or not content.parts:
+            raise ValueError(
+                f'Gemini returned empty content (finish_reason: {getattr(candidate, "finish_reason", "unknown")})'
+            )
 
         function_calls = [
             p for p in content.parts
