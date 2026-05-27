@@ -1,6 +1,15 @@
 import { useState, useEffect, useRef } from 'react';
 import { stopProcess, restartProcess, deleteProcess } from '../api';
-import { Terminal } from './Icons';
+
+function Terminal({ size = 12, color = 'currentColor' }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke={color} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="1" y="2" width="14" height="12" rx="2" />
+      <polyline points="4,6 7,9 4,12" />
+      <line x1="8" y1="12" x2="12" y2="12" />
+    </svg>
+  );
+}
 
 const STATUS_COLOR = { running: 'var(--ok)', stopped: 'var(--fg-4)', crashed: 'var(--err)' };
 

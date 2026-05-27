@@ -1,12 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
-import { argsSummary } from '../utils';
+import { argsSummary, fmtNow } from '../utils';
 import { stopSession } from '../api';
-
-function fmtNow() {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
 
 function fmtIso(iso) {
   if (!iso) return '—';

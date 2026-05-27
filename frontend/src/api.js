@@ -1,10 +1,23 @@
-export async function createSession(title = '', model = 'gemini-2.5-flash') {
-  const res = await fetch('/api/sessions/new/', {
+async function post(url, data) {
+  const res = await fetch(url, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title, model }),
+    body: JSON.stringify(data),
   });
   return res.json();
+}
+
+async function patch(url, data) {
+  const res = await fetch(url, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(data),
+  });
+  return res.json();
+}
+
+export async function createSession(title = '', model = 'gemini-2.5-flash') {
+  return post('/api/sessions/new/', { title, model });
 }
 
 export async function listSessions() {
@@ -21,30 +34,19 @@ export async function deleteSession(id) {
   await fetch(`/api/sessions/${id}/delete/`, { method: 'DELETE' });
 }
 
-export async function updateSession(id, patch) {
-  await fetch(`/api/sessions/${id}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
+export async function updateSession(id, data) {
+  await patch(`/api/sessions/${id}/`, data);
 }
 
 export async function uploadFiles(sessionId, files) {
   const form = new FormData();
   for (const file of files) form.append('files', file);
-  const res = await fetch(`/api/sessions/${sessionId}/files/`, {
-    method: 'POST',
-    body: form,
-  });
+  const res = await fetch(`/api/sessions/${sessionId}/files/`, { method: 'POST', body: form });
   return res.json();
 }
 
 export async function approveAction(sessionId, approved) {
-  await fetch(`/api/sessions/${sessionId}/approve/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ approved }),
-  });
+  await post(`/api/sessions/${sessionId}/approve/`, { approved });
 }
 
 export async function stopSession(sessionId) {
@@ -72,12 +74,7 @@ function isoDate(offset = 0) {
 export { isoDate };
 
 export async function writeMemory(key, value) {
-  const res = await fetch(`/api/memory/${encodeURIComponent(key)}/`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ value }),
-  });
-  return res.json();
+  return post(`/api/memory/${encodeURIComponent(key)}/`, { value });
 }
 
 export async function deleteMemory(key) {
@@ -85,8 +82,7 @@ export async function deleteMemory(key) {
 }
 
 export async function syncLinear() {
-  const res = await fetch('/api/linear/sync/', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' });
-  return res.json();
+  return post('/api/linear/sync/', {});
 }
 
 export async function getStats() {
@@ -100,21 +96,11 @@ export async function listSchedules() {
 }
 
 export async function createSchedule(data) {
-  const res = await fetch('/api/schedules/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  return res.json();
+  return post('/api/schedules/', data);
 }
 
-export async function updateSchedule(id, patch) {
-  const res = await fetch(`/api/schedules/${id}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
-  return res.json();
+export async function updateSchedule(id, data) {
+  return patch(`/api/schedules/${id}/`, data);
 }
 
 export async function deleteSchedule(id) {
@@ -142,11 +128,7 @@ export async function getUserContext() {
 }
 
 export async function updateUserContext(content) {
-  await fetch('/api/context/user/', {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
+  await patch('/api/context/user/', { content });
 }
 
 export async function listRepoMemories() {
@@ -155,11 +137,7 @@ export async function listRepoMemories() {
 }
 
 export async function updateRepoMemory(repo, content) {
-  await fetch(`/api/context/repos/${encodeURIComponent(repo)}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ content }),
-  });
+  await patch(`/api/context/repos/${encodeURIComponent(repo)}/`, { content });
 }
 
 export async function listProjects() {
@@ -168,20 +146,11 @@ export async function listProjects() {
 }
 
 export async function createProject(data) {
-  const res = await fetch('/api/projects/', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(data),
-  });
-  return res.json();
+  return post('/api/projects/', data);
 }
 
-export async function updateProject(id, patch) {
-  await fetch(`/api/projects/${id}/`, {
-    method: 'PATCH',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(patch),
-  });
+export async function updateProject(id, data) {
+  await patch(`/api/projects/${id}/`, data);
 }
 
 export async function listActionItems() {

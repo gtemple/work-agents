@@ -237,6 +237,18 @@ def _run_tool(tool_name, args, session_dir, session):
             yield {'type': 'ping', 'payload': {}}
 
 
+def _exec_tool(tool_name, args, session_dir, session, agent_steps):
+    """Yield tool_call, run the tool, yield tool_result, record steps and events."""
+    yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
+    agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
+    _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
+    result_text = yield from _run_tool(tool_name, args, session_dir, session)
+    yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
+    agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
+    _save_global_event(session, 'tool_result', {'tool': tool_name, 'result': result_text[:500]})
+    return result_text
+
+
 def run(session, prompt: str, skip_gated: bool = False):
     client = genai.Client(api_key=settings.GEMINI_API_KEY)
     model = getattr(session, 'model', None) or settings.GEMINI_MODEL
@@ -467,22 +479,10 @@ def run(session, prompt: str, skip_gated: bool = False):
                 else:
                     _save_global_event(session, 'approval_granted', {'tool': tool_name})
                     yield {'type': 'approval_granted', 'payload': {'tool': tool_name}}
-                    yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
-                    agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
-                    _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
-                    result_text = yield from _run_tool(tool_name, args, session_dir, session)
-                    yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
-                    agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
-                    _save_global_event(session, 'tool_result', {'tool': tool_name, 'result': result_text[:500]})
+                    result_text = yield from _exec_tool(tool_name, args, session_dir, session, agent_steps)
 
             else:
-                yield {'type': 'tool_call', 'payload': {'tool': tool_name, 'args': args}}
-                agent_steps.append({'step_type': 'tool_call', 'data': {'tool': tool_name, 'args': args}})
-                _save_global_event(session, 'tool_call', {'tool': tool_name, 'args': args})
-                result_text = yield from _run_tool(tool_name, args, session_dir, session)
-                yield {'type': 'tool_result', 'payload': {'tool': tool_name, 'result': result_text[:2000]}}
-                agent_steps.append({'step_type': 'tool_result', 'data': {'tool': tool_name, 'result': result_text}})
-                _save_global_event(session, 'tool_result', {'tool': tool_name, 'result': result_text[:500]})
+                result_text = yield from _exec_tool(tool_name, args, session_dir, session, agent_steps)
 
             if str(session.id) in _cancel_requested:
                 clear_cancel(session.id)

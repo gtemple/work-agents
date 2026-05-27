@@ -7,48 +7,45 @@ import time
 from pathlib import Path
 from django.conf import settings
 from django.http import StreamingHttpResponse, JsonResponse
+from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent, Project
+from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent, Project, UserContext, RepoMemory, ActionItem, Process
 from . import agent_loop
 from . import approval as approval_mod
 
 
+def _bg(fn):
+    threading.Thread(target=fn, daemon=True).start()
+
+
 def _start_planning_thread(session):
-    """Run the agent in a background thread so it can plan without an active SSE connection."""
     def _run():
         import django.db
         try:
-            prompt = (
+            for _ in agent_loop.run(session,
                 "Review this Linear issue carefully and produce an implementation plan. "
                 "Explore the codebase as needed, then call submit_plan with your concrete plan."
-            )
-            for _ in agent_loop.run(session, prompt):
+            ):
                 pass
         except Exception as e:
             try:
-                from .models import GlobalEvent
-                GlobalEvent.objects.create(
-                    session=session, event_type='error',
-                    data={'message': str(e)[:500]},
-                )
+                GlobalEvent.objects.create(session=session, event_type='error', data={'message': str(e)[:500]})
             except Exception:
                 pass
         finally:
             django.db.close_old_connections()
-
-    threading.Thread(target=_run, daemon=True).start()
+    _bg(_run)
 
 
 @csrf_exempt
 @require_http_methods(['POST'])
 def create_session(request):
     data = json.loads(request.body or '{}')
-    from django.conf import settings as _settings
     session = Session.objects.create(
         title=data.get('title', ''),
         system_prompt=data.get('system_prompt', ''),
-        model=data.get('model', _settings.GEMINI_MODEL),
+        model=data.get('model', settings.GEMINI_MODEL),
     )
     return JsonResponse({'id': str(session.id), 'title': session.title, 'system_prompt': session.system_prompt, 'created_at': session.created_at.isoformat()})
 
@@ -107,7 +104,6 @@ def get_session(request, session_id):
 @require_http_methods(['GET'])
 def list_sessions(request):
     from django.db.models import Subquery, OuterRef
-    from django.utils import timezone
     last_event = GlobalEvent.objects.filter(session=OuterRef('pk')).order_by('-id')
     sessions = Session.objects.annotate(
         last_event_type=Subquery(last_event.values('event_type')[:1]),
@@ -141,7 +137,6 @@ def list_sessions(request):
 @csrf_exempt
 @require_http_methods(['GET', 'PATCH'])
 def user_context(request):
-    from .models import UserContext
     ctx = UserContext.get()
     if request.method == 'PATCH':
         data = json.loads(request.body or '{}')
@@ -154,7 +149,6 @@ def user_context(request):
 
 @require_http_methods(['GET'])
 def list_repo_memories(request):
-    from .models import RepoMemory
     repos = RepoMemory.objects.all().order_by('-updated_at')
     return JsonResponse({'repos': [
         {'repo': r.repo, 'content': r.content, 'updated_at': r.updated_at.isoformat()}
@@ -165,7 +159,6 @@ def list_repo_memories(request):
 @csrf_exempt
 @require_http_methods(['GET', 'PATCH'])
 def repo_memory_detail(request, repo):
-    from .models import RepoMemory
     rm, _ = RepoMemory.objects.get_or_create(repo=repo)
     if request.method == 'PATCH':
         data = json.loads(request.body or '{}')
@@ -297,7 +290,6 @@ def stream_agent(request, session_id):
                 pass
             # Fire a GlobalEvent so the polling loop can show a toast for background sessions
             try:
-                from .models import GlobalEvent
                 GlobalEvent.objects.create(session=session, event_type='error', data={'message': str(e)[:500]})
             except Exception:
                 pass
@@ -323,7 +315,6 @@ def approve_action(request, session_id):
 def stop_session(request, session_id):
     if request.method != 'POST':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
-    from . import agent_loop
     agent_loop.request_cancel(session_id)
     # Also unblock any pending approval gate so the loop can exit
     approval_mod.respond(session_id, False)
@@ -645,7 +636,7 @@ def linear_sync(request):
             _start_planning_thread(s)
 
     if sessions_to_plan:
-        threading.Thread(target=_start_staggered, args=[sessions_to_plan], daemon=True).start()
+        _bg(lambda: _start_staggered(sessions_to_plan))
 
     return JsonResponse({
         'imported': created_count,
@@ -674,17 +665,13 @@ def _action_item_dict(item):
 
 @require_http_methods(['GET'])
 def list_action_items(request):
-    from .models import ActionItem, UserContext
     from datetime import timedelta
-    from django.utils import timezone
+    from . import suggestions as sug
 
-    # Auto-refresh if stale (> 23 hours since last run)
     ctx = UserContext.get()
     if not ctx.suggestions_generated_at or \
             (timezone.now() - ctx.suggestions_generated_at) > timedelta(hours=23):
-        from . import suggestions as sug
-        import threading
-        threading.Thread(target=sug.daily_refresh, daemon=True).start()
+        _bg(sug.daily_refresh)
 
     active = ActionItem.objects.filter(status='active').order_by('type', 'queue_position')
     saved  = ActionItem.objects.filter(status='saved').order_by('-created_at')
@@ -697,7 +684,6 @@ def list_action_items(request):
 @csrf_exempt
 @require_http_methods(['POST'])
 def action_item_act(request, item_id, action):
-    from .models import ActionItem
     from . import suggestions as sug
 
     try:
@@ -713,17 +699,14 @@ def action_item_act(request, item_id, action):
     if action == 'save':
         item.status = 'saved'
         item.save(update_fields=['status'])
-        threading.Thread(target=_refill, daemon=True).start()
+        _bg(_refill)
 
     elif action == 'dismiss':
         item.status = 'dismissed'
         item.save(update_fields=['status'])
-        threading.Thread(target=_refill, daemon=True).start()
+        _bg(_refill)
 
     elif action == 'investigate':
-        from .models import RepoMemory, UserContext
-
-        # Build context into system_prompt so the agent has it from turn one
         ctx_parts = [f'**{item.title}**\n\n{item.description}']
         if item.repo:
             try:
@@ -741,7 +724,6 @@ def action_item_act(request, item_id, action):
                 f'## Relevant repo\n`{item.repo}` — use `clone_repo {item.repo}` '
                 f'to clone it, then explore inside `{repo_name}/`.'
             )
-
         session = Session.objects.create(
             title=item.title,
             system_prompt='\n\n'.join(ctx_parts),
@@ -750,7 +732,7 @@ def action_item_act(request, item_id, action):
         item.session = session
         item.status = 'saved'
         item.save(update_fields=['session', 'status'])
-        threading.Thread(target=_refill, daemon=True).start()
+        _bg(_refill)
         return JsonResponse({'session_id': str(session.id)})
 
     elif action == 'refresh':
@@ -779,7 +761,6 @@ def _process_dict(p):
 @require_http_methods(['GET'])
 def list_processes(request):
     import os
-    from .models import Process
     processes = list(Process.objects.all())
     for p in processes:
         if p.status == 'running' and p.pid:
@@ -795,8 +776,6 @@ def list_processes(request):
 @require_http_methods(['POST'])
 def stop_process_view(request, process_id):
     import signal, os
-    from django.utils import timezone
-    from .models import Process
     try:
         p = Process.objects.get(id=process_id)
     except Process.DoesNotExist:
@@ -816,8 +795,6 @@ def stop_process_view(request, process_id):
 @require_http_methods(['POST'])
 def restart_process_view(request, process_id):
     import subprocess, os, uuid as _uuid
-    from pathlib import Path
-    from .models import Process
     try:
         p = Process.objects.get(id=process_id)
     except Process.DoesNotExist:
@@ -850,10 +827,7 @@ def restart_process_view(request, process_id):
 
 @require_http_methods(['GET'])
 def process_logs_stream(request, process_id):
-    import time, json, os
-    from pathlib import Path
-    from django.http import StreamingHttpResponse
-    from .models import Process
+    import time, os
     try:
         p = Process.objects.get(id=process_id)
     except Process.DoesNotExist:
@@ -892,7 +866,6 @@ def process_logs_stream(request, process_id):
 
 def delete_process_view(request, process_id):
     import os, signal
-    from .models import Process
     if request.method != 'DELETE':
         return JsonResponse({'error': 'Method not allowed'}, status=405)
     try:
@@ -926,7 +899,6 @@ def _schedule_dict(s):
 @require_http_methods(['GET', 'POST'])
 def list_schedules(request):
     if request.method == 'POST':
-        from django.utils import timezone
         from datetime import timedelta
         data = json.loads(request.body or '{}')
         interval = int(data.get('interval_minutes', 1440))

@@ -37,6 +37,11 @@ export function timeAgo(ts, now) {
 }
 
 
+export function fmtNow() {
+  const d = new Date(), p = n => String(n).padStart(2, '0');
+  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
+}
+
 export function argsSummary(tool, args = {}) {
   if (args.code)     return `${args.language || ''} · ${args.code.slice(0, 50)}`.trim();
   if (args.command)  return args.command.slice(0, 60);

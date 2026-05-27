@@ -126,11 +126,48 @@ def _fetch_recent_repos() -> list[dict]:
     return repos
 
 
+_ITEM_SCHEMA = types.Schema(
+    type=types.Type.OBJECT,
+    properties={
+        'items': types.Schema(
+            type=types.Type.ARRAY,
+            items=types.Schema(
+                type=types.Type.OBJECT,
+                properties={
+                    'title':       types.Schema(type=types.Type.STRING),
+                    'description': types.Schema(type=types.Type.STRING),
+                    'type':        types.Schema(type=types.Type.STRING),
+                    'category':    types.Schema(type=types.Type.STRING),
+                    'repo':        types.Schema(type=types.Type.STRING),
+                    'confidence':  types.Schema(type=types.Type.NUMBER),
+                },
+                required=['title', 'description', 'type', 'category', 'repo', 'confidence'],
+            ),
+        ),
+    },
+    required=['items'],
+)
+
+
+def _call_gemini(prompt: str) -> list[dict]:
+    client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    response = client.models.generate_content(
+        model=settings.GEMINI_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            response_mime_type='application/json',
+            response_schema=_ITEM_SCHEMA,
+        ),
+    )
+    if response.usage_metadata:
+        u = response.usage_metadata
+        _log_tokens(getattr(u, 'prompt_token_count', 0) or 0, getattr(u, 'candidates_token_count', 0) or 0)
+    return json.loads(response.candidates[0].content.parts[0].text).get('items', [])
+
+
 def _call_gemini_work_personal(context: str, n_work: int, n_personal: int) -> list[dict]:
     if n_work + n_personal == 0:
         return []
-
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
     prompt = f"""You are generating actionable suggestion items for a developer dashboard.
 
 {context}
@@ -152,54 +189,16 @@ Each suggestion needs:
 - confidence: float 0.0–1.0. Be calibrated — spread scores, don't cluster around 0.8.
 
 Return JSON only."""
-
-    response = client.models.generate_content(
-        model=settings.GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type='application/json',
-            response_schema=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    'items': types.Schema(
-                        type=types.Type.ARRAY,
-                        items=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                'title':       types.Schema(type=types.Type.STRING),
-                                'description': types.Schema(type=types.Type.STRING),
-                                'type':        types.Schema(type=types.Type.STRING),
-                                'category':    types.Schema(type=types.Type.STRING),
-                                'repo':        types.Schema(type=types.Type.STRING),
-                                'confidence':  types.Schema(type=types.Type.NUMBER),
-                            },
-                            required=['title', 'description', 'type', 'category', 'repo', 'confidence'],
-                        ),
-                    ),
-                },
-                required=['items'],
-            ),
-        ),
-    )
-
-    if response.usage_metadata:
-        u = response.usage_metadata
-        _log_tokens(getattr(u, 'prompt_token_count', 0) or 0, getattr(u, 'candidates_token_count', 0) or 0)
-
-    text = response.candidates[0].content.parts[0].text
-    return json.loads(text).get('items', [])
+    return _call_gemini(prompt)
 
 
 def _call_gemini_repos(repos: list[dict], context: str, n: int) -> list[dict]:
     if not repos or n == 0:
         return []
-
-    client = genai.Client(api_key=settings.GEMINI_API_KEY)
     repo_lines = '\n'.join(
         f"- {r['name']} ({r['language']}, last pushed {r['pushed_at']}): {r['description']}"
         for r in repos[:30]
     )
-
     prompt = f"""You are generating actionable improvement suggestions for a developer's GitHub repositories.
 
 {context}
@@ -222,47 +221,10 @@ Each suggestion needs:
 - confidence: float 0.0–1.0 reflecting how actionable this is given what you know. Be calibrated.
 
 Return JSON only."""
-
-    response = client.models.generate_content(
-        model=settings.GEMINI_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            response_mime_type='application/json',
-            response_schema=types.Schema(
-                type=types.Type.OBJECT,
-                properties={
-                    'items': types.Schema(
-                        type=types.Type.ARRAY,
-                        items=types.Schema(
-                            type=types.Type.OBJECT,
-                            properties={
-                                'title':       types.Schema(type=types.Type.STRING),
-                                'description': types.Schema(type=types.Type.STRING),
-                                'type':        types.Schema(type=types.Type.STRING),
-                                'category':    types.Schema(type=types.Type.STRING),
-                                'repo':        types.Schema(type=types.Type.STRING),
-                                'confidence':  types.Schema(type=types.Type.NUMBER),
-                            },
-                            required=['title', 'description', 'type', 'category', 'repo', 'confidence'],
-                        ),
-                    ),
-                },
-                required=['items'],
-            ),
-        ),
-    )
-
-    if response.usage_metadata:
-        u = response.usage_metadata
-        _log_tokens(getattr(u, 'prompt_token_count', 0) or 0, getattr(u, 'candidates_token_count', 0) or 0)
-
-    text = response.candidates[0].content.parts[0].text
-    items = json.loads(text).get('items', [])
+    items = _call_gemini(prompt)
     for item in items:
         item['type'] = 'repo'
-    # purposely-web is covered by work suggestions — exclude it here
-    items = [i for i in items if i.get('repo') != 'purposely/purposely-web']
-    return items
+    return [i for i in items if i.get('repo') != 'purposely/purposely-web']
 
 
 def promote_queued_to_active():

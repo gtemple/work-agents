@@ -14,17 +14,12 @@ import Toast from './components/Toast';
 import WorkspacePanel from './components/WorkspacePanel';
 import ProcessesBar from './components/ProcessesBar';
 import ReactMarkdown from 'react-markdown';
-import { estimateCost, argsSummary } from './utils';
+import { estimateCost, argsSummary, fmtNow } from './utils';
 import './index.css';
 
-function fmtT() {
-  const d = new Date(), p = n => String(n).padStart(2, '0');
-  return `${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`;
-}
-
 function useClock() {
-  const [t, setT] = useState(fmtT);
-  useEffect(() => { const id = setInterval(() => setT(fmtT()), 1000); return () => clearInterval(id); }, []);
+  const [t, setT] = useState(fmtNow);
+  useEffect(() => { const id = setInterval(() => setT(fmtNow()), 1000); return () => clearInterval(id); }, []);
   return t;
 }
 
@@ -374,16 +369,16 @@ export default function App() {
     ));
     const acc = { steps: [], text: '' };
     const agentLabel = sess?.linear_issue_key || sessionId.slice(0, 8);
-    const feedLine = (lvl, msg) => setFeed(prev => [...prev, { t: fmtT(), agent: agentLabel, lvl, msg }].slice(-80));
+    const feedLine = (lvl, msg) => setFeed(prev => [...prev, { t: fmtNow(), agent: agentLabel, lvl, msg }].slice(-80));
     const es = streamAgent(sessionId, prompt, ev => {
       if (ev.type === 'tool_call') {
-        acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload, t: fmtT() }];
+        acc.steps = [...acc.steps, { step_type: 'tool_call', data: ev.payload, t: fmtNow() }];
         feedLine('tool', `${ev.payload.tool} ${argsSummary(ev.payload.tool, ev.payload.args || {})}`.trim());
         setSessions(prev => prev.map(s =>
           s.id === sessionId ? { ...s, liveSteps: acc.steps, stepCount: acc.steps.filter(x => x.step_type === 'tool_call').length } : s
         ));
       } else if (ev.type === 'tool_result') {
-        acc.steps = [...acc.steps, { step_type: 'tool_result', data: ev.payload, t: fmtT() }];
+        acc.steps = [...acc.steps, { step_type: 'tool_result', data: ev.payload, t: fmtNow() }];
         setSessions(prev => prev.map(s => s.id === sessionId ? { ...s, liveSteps: acc.steps } : s));
       } else if (ev.type === 'tokens') {
         setSessions(prev => prev.map(s =>
