@@ -123,8 +123,22 @@ def create_pull_request(git_root: Path, token: str, title: str, body: str, base:
         data = resp.json()
         return f'PR created: {data["html_url"]} (#{data["number"]})'
 
-    msg = resp.json().get('message', 'unknown error')
-    errors = resp.json().get('errors', [])
+    data = resp.json()
+    errors = data.get('errors', [])
+
+    # PR already exists — fetch and return the existing URL
+    if resp.status_code == 422 and any('already exists' in e.get('message', '') for e in errors):
+        existing = requests.get(
+            f'https://api.github.com/repos/{slug}/pulls',
+            headers={'Authorization': f'token {token}', 'Accept': 'application/vnd.github.v3+json'},
+            params={'head': f'{slug.split("/")[0]}:{head}', 'state': 'open'},
+            timeout=10,
+        )
+        if existing.status_code == 200 and existing.json():
+            pr = existing.json()[0]
+            return f'PR already exists: {pr["html_url"]} (#{pr["number"]})'
+
+    msg = data.get('message', 'unknown error')
     detail = '; '.join(e.get('message', '') for e in errors) if errors else ''
     return f'Error {resp.status_code}: {msg}' + (f' — {detail}' if detail else '')
 
