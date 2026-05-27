@@ -32,7 +32,7 @@ function makeSessionState(s, idx) {
   return {
     ...s,
     messages: [], liveSteps: [], liveText: '',
-    status: 'idle', stepCount: 0, startedAt: null, eventsLoadedUpTo: 0,
+    status: s.is_running ? 'running' : 'idle', stepCount: 0, startedAt: null, eventsLoadedUpTo: 0,
     system_prompt: s.system_prompt ?? '',
     inputTokens: s.input_tokens ?? 0,
     outputTokens: s.output_tokens ?? 0,

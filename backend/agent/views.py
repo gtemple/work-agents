@@ -99,7 +99,11 @@ def get_session(request, session_id):
 
 @require_http_methods(['GET'])
 def list_sessions(request):
-    sessions = Session.objects.all()
+    from django.db.models import Subquery, OuterRef
+    last_event_type = GlobalEvent.objects.filter(
+        session=OuterRef('pk')
+    ).order_by('-id').values('event_type')[:1]
+    sessions = Session.objects.annotate(last_event_type=Subquery(last_event_type)).all()
     max_event_id = GlobalEvent.objects.order_by('-id').values_list('id', flat=True).first() or 0
     return JsonResponse({'sessions': [
         {
@@ -114,6 +118,7 @@ def list_sessions(request):
             'session_role': s.session_role,
             'project_id': str(s.project_id) if s.project_id else None,
             'model': s.model,
+            'is_running': s.last_event_type not in ('done', 'error', None),
         }
         for s in sessions
     ], 'max_event_id': max_event_id})
