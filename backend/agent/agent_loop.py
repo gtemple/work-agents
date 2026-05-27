@@ -242,9 +242,18 @@ def run(session, prompt: str, skip_gated: bool = False):
 
     history = []
     messages = list(session.messages.all())
-    # Trim history for large sessions — keep last 20 messages to avoid context overflow
-    if len(messages) > 20:
-        messages = messages[-20:]
+    # Trim history to avoid context overflow (~800k char budget ≈ 200k tokens).
+    # Always keep the first message (original task) + as many recent messages as fit.
+    CHAR_BUDGET = 800_000
+    if messages:
+        total = sum(len(m.content) for m in messages)
+        if total > CHAR_BUDGET:
+            first = messages[:1]
+            rest = messages[1:]
+            # Drop from the front of the middle until we're under budget
+            while rest and sum(len(m.content) for m in first + rest) > CHAR_BUDGET:
+                rest = rest[1:]
+            messages = first + rest
     for msg in messages:
         role = 'model' if msg.role == 'assistant' else 'user'
         history.append(types.Content(role=role, parts=[types.Part(text=msg.content)]))
