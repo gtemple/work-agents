@@ -18,7 +18,7 @@ class AgentViewsTest(TestCase):
         )
 
     def test_list_sessions_view(self):
-        response = self.client.get(reverse('agent:list_sessions'))
+        response = self.client.get('/api/sessions/')
         self.assertEqual(response.status_code, 200)
 
     def test_create_session_view(self):
@@ -26,13 +26,13 @@ class AgentViewsTest(TestCase):
             'project_id': str(self.project.id),
             'session_role': 'standard'
         }
-        response = self.client.post(reverse('agent:create_session'), data, content_type='application/json')
+        response = self.client.post('/api/sessions/new/', data, content_type='application/json')
         self.assertEqual(response.status_code, 200)
         self.assertIn('id', response.json())
         self.assertEqual(Session.objects.count(), 2)
 
     def test_get_session_view(self):
-        response = self.client.get(reverse('agent:get_session', args=[self.session.id]))
+        response = self.client.get(f'/api/sessions/{self.session.id}/')
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()['id'], str(self.session.id))
 
@@ -114,11 +114,10 @@ class AgentLoopTest(TestCase):
             types.Candidate(content=types.Content(parts=[types.Part(text="Hello from the agent!")]))
         ]
         
-        # Directly mock the usage_metadata object to ensure attributes are accessible
-        mock_usage_metadata = MagicMock()
-        mock_usage_metadata.promptTokenCount = 10
-        mock_usage_metadata.responseTokenCount = 5
-        mock_usage_metadata.thoughtsTokenCount = 0
+        mock_usage_metadata = MagicMock(spec=[])
+        mock_usage_metadata.prompt_token_count = 10
+        mock_usage_metadata.candidates_token_count = 5
+        mock_usage_metadata.thoughts_token_count = 0
         mock_response.usage_metadata = mock_usage_metadata
 
         mock_genai_client.return_value.models.generate_content.return_value = mock_response
@@ -155,10 +154,10 @@ class AgentLoopTest(TestCase):
         mock_response.candidates = [
             types.Candidate(content=types.Content(parts=[types.Part(function_call=mock_tool_code)]))
         ]
-        mock_usage_metadata = MagicMock()
-        mock_usage_metadata.promptTokenCount = 20
-        mock_usage_metadata.responseTokenCount = 10
-        mock_usage_metadata.thoughtsTokenCount = 0
+        mock_usage_metadata = MagicMock(spec=[])
+        mock_usage_metadata.prompt_token_count = 20
+        mock_usage_metadata.candidates_token_count = 10
+        mock_usage_metadata.thoughts_token_count = 0
         mock_response.usage_metadata = mock_usage_metadata
         mock_genai_client.return_value.models.generate_content.return_value = mock_response
 
@@ -228,7 +227,7 @@ class AgentLoopTest(TestCase):
         ]
         diff = _get_purposely_diff(MagicMock())
         self.assertLess(len(diff), len(long_diff))
-        self.assertIn("... (", diff)
+        self.assertIn("… (", diff)
         self.assertIn(" more lines truncated)", diff)
 
     @patch('agent.sandbox.git_exec') # Patch sandbox.git_exec which is called by _get_purposely_diff
@@ -251,23 +250,20 @@ class AgentLoopTest(TestCase):
         mock_candidate.content = None # No content for malformed call
         mock_response.candidates = [mock_candidate]
 
-        # Mock usage_metadata for token counts for the first (malformed) call
-        mock_usage_metadata_first_call = MagicMock()
-        mock_usage_metadata_first_call.promptTokenCount = 15
-        mock_usage_metadata_first_call.responseTokenCount = 0 # No response tokens for malformed
-        mock_usage_metadata_first_call.thoughtsTokenCount = 0
+        mock_usage_metadata_first_call = MagicMock(spec=[])
+        mock_usage_metadata_first_call.prompt_token_count = 15
+        mock_usage_metadata_first_call.candidates_token_count = 0
+        mock_usage_metadata_first_call.thoughts_token_count = 0
         mock_response.usage_metadata = mock_usage_metadata_first_call
 
-        # Mock a valid text response that would follow the retry
         mock_text_response = MagicMock()
         mock_text_response.candidates = [
             types.Candidate(content=types.Content(parts=[types.Part(text="Corrected response.")]))
         ]
-        # Mock usage_metadata for token counts for the second (corrected) call
-        mock_usage_metadata_second_call = MagicMock()
-        mock_usage_metadata_second_call.promptTokenCount = 5
-        mock_usage_metadata_second_call.responseTokenCount = 3
-        mock_usage_metadata_second_call.thoughtsTokenCount = 0
+        mock_usage_metadata_second_call = MagicMock(spec=[])
+        mock_usage_metadata_second_call.prompt_token_count = 5
+        mock_usage_metadata_second_call.candidates_token_count = 3
+        mock_usage_metadata_second_call.thoughts_token_count = 0
         mock_text_response.usage_metadata = mock_usage_metadata_second_call
 
         # Set side_effect for generate_content to return malformed, then a valid text response
