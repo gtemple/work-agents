@@ -287,14 +287,27 @@ def run(session, prompt: str, skip_gated: bool = False):
             yield {'type': 'error', 'payload': {'message': 'Stopped by user.'}}
             return
 
-        response = client.models.generate_content(
-            model=model,
-            contents=history,
-            config=types.GenerateContentConfig(
-                system_instruction=_compose_system_prompt(session),
-                tools=[_build_tool_config()],
-            ),
-        )
+        try:
+            response = client.models.generate_content(
+                model=model,
+                contents=history,
+                config=types.GenerateContentConfig(
+                    system_instruction=_compose_system_prompt(session),
+                    tools=[_build_tool_config()],
+                ),
+            )
+        except Exception as e:
+            msg = str(e)
+            if '429' in msg or 'RESOURCE_EXHAUSTED' in msg:
+                import re, time
+                delay = 60
+                m = re.search(r'retryDelay.*?(\d+)s', msg)
+                if m:
+                    delay = int(m.group(1)) + 5
+                yield {'type': 'tool_call', 'payload': {'tool': '_rate_limit', 'args': {'retry_in': delay}}}
+                time.sleep(delay)
+                continue
+            raise
 
         if response.usage_metadata:
             u = response.usage_metadata
