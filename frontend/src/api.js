@@ -198,3 +198,20 @@ export function streamAgent(sessionId, prompt, onEvent) {
   };
   return es;
 }
+
+export async function listNotes() {
+  const res = await fetch('/api/notes/');
+  return res.json();
+}
+
+export async function createNote(data) {
+  return post('/api/notes/', data);
+}
+
+export async function updateNote(id, data) {
+  return patch(`/api/notes/${id}/`, data);
+}
+
+export async function deleteNote(id) {
+  await fetch(`/api/notes/${id}/`, { method: 'DELETE' });
+}

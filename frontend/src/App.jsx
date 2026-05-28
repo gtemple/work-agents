@@ -4,6 +4,7 @@ import {
   approveAction, getEvents, getSessionEvents, getRecentEvents,
   listActionItems, actionItemAct,
   listProcesses, deleteSession, getDigest, isoDate,
+  listNotes, createNote, updateNote, deleteNote,
 } from './api';
 import LeftRail from './components/LeftRail';
 import TriageQueue from './components/TriageQueue';
@@ -13,6 +14,7 @@ import ChatView from './components/ChatView';
 import Toast from './components/Toast';
 import WorkspacePanel from './components/WorkspacePanel';
 import ProcessesBar from './components/ProcessesBar';
+import { NotesDrawer } from './components/NotesDrawer';
 import ReactMarkdown from 'react-markdown';
 import { estimateCost, argsSummary, fmtNow } from './utils';
 import './index.css';
@@ -63,7 +65,7 @@ function TitleBar({ running, queued, totalCost, onHamburger }) {
   );
 }
 
-function StatusBar({ running, queued, done, errors, needsInput, totalTokens, totalCost, focused, onOpenNeeds }) {
+function StatusBar({ running, queued, done, errors, needsInput, notesCount, totalTokens, totalCost, focused, onOpenNeeds, onOpenNotes }) {
   return (
     <footer className="stat">
       {needsInput > 0 && (
@@ -86,6 +88,17 @@ function StatusBar({ running, queued, done, errors, needsInput, totalTokens, tot
       <span className="seg"><b>${totalCost.toFixed(4)}</b></span>
       <span className="right">
         {focused && <span className="seg">focus: <b style={{ color: 'var(--accent)' }}>{String(focused).slice(0, 12)}</b></span>}
+        {onOpenNotes && (
+          <button className="seg" onClick={onOpenNotes} style={{
+            background: 'transparent', border: 0, color: 'var(--fg-3)',
+            font: 'inherit', fontSize: 10.5, cursor: 'pointer',
+            display: 'inline-flex', alignItems: 'center', gap: 6, padding: 0,
+          }} title="toggle notes (`)">
+            <span style={{ color: 'var(--fg-4)' }}>notes</span>
+            <b style={{ color: 'var(--fg-2)' }}>{notesCount}</b>
+            <span className="key">`</span>
+          </button>
+        )}
         <span className="seg"><span className="key">i</span> investigate</span>
         <span className="seg"><span className="key">s</span> save</span>
         <span className="seg"><span className="key">n</span> dismiss</span>
@@ -108,6 +121,7 @@ function HelpOverlay({ onClose }) {
           <kbd>n</kbd><span className="desc">dismiss focused</span>
           <kbd>/</kbd><span className="desc">focus search</span>
           <kbd>?</kbd><span className="desc">toggle this help</span>
+          <kbd>`</kbd><span className="desc">toggle notes drawer</span>
           <kbd>esc</kbd><span className="desc">close overlays</span>
         </div>
         <div className="foot">esc · close</div>
@@ -139,6 +153,10 @@ export default function App() {
   const [openChat, setOpenChat]           = useState(null);
   const [openWorkspace, setOpenWorkspace] = useState(null); // 'memory' | 'schedules' | 'stats'
   const [drawerOpen, setDrawerOpen]       = useState(false);
+  const [notes, setNotes]                 = useState([]);
+  const [notesOpen, setNotesOpen]         = useState(false);
+  const [notesView, setNotesView]         = useState('list');
+  const [notesSelected, setNotesSelected] = useState(null);
   const [globalModel, setGlobalModel]     = useState(() => localStorage.getItem('globalModel') || 'gemini-2.5-flash');
 
   const sessionsRef    = useRef(sessions);
@@ -161,6 +179,7 @@ export default function App() {
       if (!list?.length) return;
       setSessions(list.map(makeSessionState));
     });
+    listNotes().then(({ notes: list }) => { if (list?.length) setNotes(list); });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
     getDigest(isoDate(0)).then(d => {
       if (d) { setDigest(d); setDigestDate(isoDate(0)); }
@@ -512,6 +531,11 @@ export default function App() {
   useEffect(() => {
     const onKey = e => {
       if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+      if (e.key === '`' && !e.metaKey && !e.ctrlKey && !e.altKey) {
+        e.preventDefault();
+        setNotesOpen((o) => !o);
+        return;
+      }
       if (openChat) return;
       if (e.key === 'j' || e.key === 'ArrowDown') { e.preventDefault(); setFocus(f => Math.min(liveTriage.length - 1, f + 1)); }
       else if (e.key === 'k' || e.key === 'ArrowUp') { e.preventDefault(); setFocus(f => Math.max(0, f - 1)); }
@@ -657,9 +681,11 @@ export default function App() {
         done={counts.done}
         errors={counts.error}
         needsInput={counts.needs_input}
+        notesCount={notes.length}
         totalTokens={totals.tokens}
         totalCost={totals.cost}
         focused={focusedItem?.title}
+        onOpenNotes={() => setNotesOpen((o) => !o)}
         onOpenNeeds={() => {
           const first = sessions.find(s => getSessionStatus(s) === 'needs_input');
           if (first) openSession(first.id);
@@ -674,6 +700,41 @@ export default function App() {
           onApprove={args => approve(openChat, true, args)}
           onReject={() => approve(openChat, false)}
           onDelete={handleDelete}
+          notes={notes}
+          onOpenNote={(id) => {
+            setNotesSelected(id);
+            setNotesView('edit');
+            setNotesOpen(true);
+          }}
+          onNewNoteForSession={async () => {
+            const sess = sessionsRef.current.find((s) => s.id === openChat);
+            const ref = sess?.linear_issue_key || null;
+            const note = await createNote({ title: '', body: '', ref, pinned: false });
+            setNotes((all) => [{ ...note }, ...all]);
+            setNotesSelected(String(note.id));
+            setNotesView('edit');
+            setNotesOpen(true);
+          }}
+        />
+      )}
+
+      {notesOpen && (
+        <NotesDrawer
+          notes={notes}
+          setNotes={setNotes}
+          sessions={sessions}
+          view={notesView}
+          setView={setNotesView}
+          selectedId={notesSelected}
+          setSelectedId={setNotesSelected}
+          onAskAgent={(note) => {
+            if (note.ref) {
+              const sess = sessions.find((s) => s.linear_issue_key === note.ref);
+              if (sess) { openSession(sess.id); setNotesOpen(false); return; }
+            }
+            window.alert('this would start a new agent with the note as context');
+          }}
+          onClose={() => setNotesOpen(false)}
         />
       )}
 

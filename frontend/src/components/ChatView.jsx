@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { argsSummary, fmtNow } from '../utils';
 import { stopSession } from '../api';
+import { SessionNotes } from './NotesDrawer';
 
 function fmtIso(iso) {
   if (!iso) return '—';
@@ -142,7 +143,7 @@ function ChatRow({ m, onApprove, onReject, expanded, onToggle, argsDraft, onArgs
   return null;
 }
 
-export default function ChatView({ session, onClose, onSend, onApprove, onReject, onDelete }) {
+export default function ChatView({ session, onClose, onSend, onApprove, onReject, onDelete, notes, onOpenNote, onNewNoteForSession }) {
   const [draft, setDraft] = useState('');
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [expandedGroups, setExpandedGroups] = useState(new Set());
@@ -246,6 +247,14 @@ export default function ChatView({ session, onClose, onSend, onApprove, onReject
       </header>
 
       <div className="chat-body" ref={bodyRef}>
+        {session.linear_issue_key && notes && (
+          <SessionNotes
+            sessionRef={session.linear_issue_key}
+            notes={notes}
+            onOpenNote={onOpenNote}
+            onNewForSession={onNewNoteForSession}
+          />
+        )}
         {rows.length === 0 && (
           <div style={{ padding: '60px 24px', textAlign: 'center', color: 'var(--fg-3)', fontSize: 12 }}>
             <div style={{ color: 'var(--fg-4)', fontSize: 11, letterSpacing: '.12em', textTransform: 'uppercase', marginBottom: 10 }}>no messages yet</div>

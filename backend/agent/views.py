@@ -10,7 +10,7 @@ from django.http import StreamingHttpResponse, JsonResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_http_methods
-from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent, Project, UserContext, RepoMemory, ActionItem, Process
+from .models import Session, Message, Memory, Schedule, TokenUsage, GlobalEvent, Project, UserContext, RepoMemory, ActionItem, Process, Note
 from . import agent_loop
 from . import approval as approval_mod
 
@@ -930,3 +930,40 @@ def schedule_detail(request, schedule_id):
             setattr(schedule, field, data[field])
     schedule.save()
     return JsonResponse(_schedule_dict(schedule))
+
+
+@csrf_exempt
+def list_or_create_notes(request):
+    if request.method == 'GET':
+        ref = request.GET.get('ref')
+        qs = Note.objects.all()
+        if ref:
+            qs = qs.filter(ref=ref)
+        return JsonResponse({'notes': [n.to_dict() for n in qs]})
+    data = json.loads(request.body or '{}')
+    note = Note.objects.create(
+        title=data.get('title', ''),
+        body=data.get('body', ''),
+        ref=data.get('ref') or None,
+        pinned=data.get('pinned', False),
+    )
+    return JsonResponse(note.to_dict(), status=201)
+
+
+@csrf_exempt
+def note_detail(request, note_id):
+    try:
+        note = Note.objects.get(pk=note_id)
+    except Note.DoesNotExist:
+        return JsonResponse({'error': 'Not found'}, status=404)
+    if request.method == 'DELETE':
+        note.delete()
+        return JsonResponse({'ok': True})
+    data = json.loads(request.body or '{}')
+    for field in ('title', 'body', 'pinned'):
+        if field in data:
+            setattr(note, field, data[field])
+    if 'ref' in data:
+        note.ref = data['ref'] or None
+    note.save()
+    return JsonResponse(note.to_dict())

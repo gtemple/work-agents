@@ -203,3 +203,27 @@ class Process(models.Model):
 
     class Meta:
         ordering = ['-started_at']
+
+
+class Note(models.Model):
+    title = models.CharField(max_length=500, blank=True)
+    body = models.TextField(blank=True)
+    ref = models.CharField(max_length=100, blank=True, null=True)
+    pinned = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-created_at']
+
+    def to_dict(self):
+        fmt = lambda dt: dt.strftime('%Y-%m-%d %H:%M:%S')
+        return {
+            'id': str(self.pk),
+            'title': self.title,
+            'body': self.body,
+            'ref': self.ref or None,
+            'pinned': self.pinned,
+            'createdAt': fmt(self.created_at),
+            'updatedAt': fmt(self.updated_at),
+        }

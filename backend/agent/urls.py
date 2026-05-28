@@ -30,4 +30,6 @@ urlpatterns = [
     path('processes/<int:process_id>/restart/', views.restart_process_view),
     path('processes/<int:process_id>/logs/', views.process_logs_stream),
     path('processes/<int:process_id>/', views.delete_process_view),
+    path('notes/', views.list_or_create_notes),
+    path('notes/<int:note_id>/', views.note_detail),
 ]
