@@ -38,6 +38,7 @@ export function NotesDrawer({
 }) {
   const [query, setQuery] = useState('');
   const [savedFlash, setSavedFlash] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   const titleRef = useRef(null);
   const bodyRef = useRef(null);
 
@@ -93,10 +94,12 @@ export function NotesDrawer({
   };
 
   const deleteNote = () => {
+    if (!confirmDelete) { setConfirmDelete(true); return; }
     apiDeleteNote(selectedId);
     setNotes((all) => all.filter((n) => n.id !== selectedId));
     setSelectedId(null);
     setView('list');
+    setConfirmDelete(false);
   };
 
   const togglePin = () => {
@@ -177,14 +180,20 @@ export function NotesDrawer({
         ) : currentNote ? (
           <div className="nd-edit">
             <div className="nd-edit-head">
-              <button className="back" onClick={() => { setView('list'); setSelectedId(null); }}>← all</button>
+              <button className="back" onClick={() => { setView('list'); setSelectedId(null); setConfirmDelete(false); }}>← all</button>
               <span style={{ flex: 1 }} />
               <button className="pin-btn" data-on={currentNote.pinned ? '1' : '0'}
                 onClick={togglePin} title="pin">
                 {currentNote.pinned ? '★ pinned' : '☆ pin'}
               </button>
               <button className="ask-btn" onClick={() => onAskAgent(currentNote)}>→ agent</button>
-              <button className="del" onClick={deleteNote} title="delete">✕</button>
+              {confirmDelete
+                ? <>
+                    <button className="del confirm" onClick={deleteNote}>confirm delete</button>
+                    <button className="del" onClick={() => setConfirmDelete(false)}>cancel</button>
+                  </>
+                : <button className="del" onClick={deleteNote} title="delete">✕</button>
+              }
             </div>
             <input
               ref={titleRef}

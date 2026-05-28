@@ -781,6 +781,7 @@ body::before {
 }
 .nd-edit-head .ask-btn:hover { background: rgba(230,179,74,.16); }
 .nd-edit-head .del:hover { color: var(--err); border-color: rgba(211,111,111,.3); }
+.nd-edit-head .del.confirm { color: var(--err); border-color: rgba(211,111,111,.5); background: rgba(211,111,111,.08); }
 
 .nd-edit .title-input {
   background: transparent; border: 0;
