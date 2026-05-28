@@ -16,12 +16,17 @@ Log in with the same account the server is registered under. Once authenticated,
 
 ## 3. Find the server's Tailscale IP or hostname
 
-Go to [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines). The MacBook Air will be listed there with its Tailscale IP (`100.x.x.x`) and MagicDNS hostname (something like `giordanos-macbook-air.tail....ts.net`).
+The MacBook Air is already registered:
+
+- **Tailscale IP**: `100.110.17.46`
+- **MagicDNS hostname**: `giordanos-macbook-air`
+
+(Verify at [login.tailscale.com/admin/machines](https://login.tailscale.com/admin/machines) if anything changes.)
 
 ## 4. Access the app
 
 ```
-http://<tailscale-ip>:8000
+http://100.110.17.46:8000
 ```
 
 Same port as the local network (`192.168.2.18:8000`). Tailscale routes it through the tunnel automatically — no VPN config, no port forwarding needed.
@@ -41,7 +46,7 @@ ssh giordanotemple@<tailscale-ip>
 
 # Or add this to ~/.ssh/config for convenience:
 # Host mac
-#   HostName <tailscale-ip>
+#   HostName 100.110.17.46
 #   User giordanotemple
 ```
 
