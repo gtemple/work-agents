@@ -55,6 +55,6 @@ Deploy commands (same as usual, just using the Tailscale address instead of `192
 ```bash
 ssh mac 'cd work-agents && git pull'
 ssh mac 'cd work-agents/backend && source .venv/bin/activate && python3 manage.py migrate'
-ssh mac 'cd work-agents/frontend && npm run build'
+ssh mac 'export PATH="$PATH:/usr/local/bin:/opt/homebrew/bin" && cd work-agents/frontend && npm run build'
 ssh mac 'launchctl unload ~/Library/LaunchAgents/local.work-agents.backend.plist && launchctl load ~/Library/LaunchAgents/local.work-agents.backend.plist'
 ```
