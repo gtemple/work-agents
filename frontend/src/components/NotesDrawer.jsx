@@ -60,8 +60,24 @@ export function NotesDrawer({
     else bodyRef.current?.focus();
   }, [view, selectedId]);
 
+  // Debounced full-note sync — fires 400ms after the last change to any field.
+  // Using the full note avoids losing fields when rapidly switching between inputs.
+  const syncTimerRef = useRef(null);
+  useEffect(() => {
+    if (view !== 'edit' || !currentNote || !selectedId) return;
+    clearTimeout(syncTimerRef.current);
+    syncTimerRef.current = setTimeout(() => {
+      apiUpdateNote(selectedId, {
+        title: currentNote.title,
+        body: currentNote.body,
+        ref: currentNote.ref,
+        pinned: currentNote.pinned,
+      });
+    }, 400);
+    return () => clearTimeout(syncTimerRef.current);
+  }, [currentNote?.title, currentNote?.body, currentNote?.ref, currentNote?.pinned, selectedId]);
+
   const newNote = async (ref) => {
-    const now = nowStamp();
     const note = await createNote({ title: '', body: '', ref: ref || null, pinned: false });
     setNotes((all) => [{ ...note }, ...all]);
     setSelectedId(String(note.id));
@@ -74,8 +90,6 @@ export function NotesDrawer({
     setSavedFlash(true);
     clearTimeout(updateNote._t);
     updateNote._t = setTimeout(() => setSavedFlash(false), 800);
-    clearTimeout(updateNote._st);
-    updateNote._st = setTimeout(() => apiUpdateNote(selectedId, patch), 400);
   };
 
   const deleteNote = () => {
