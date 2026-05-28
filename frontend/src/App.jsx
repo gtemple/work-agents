@@ -44,11 +44,12 @@ function makeSessionState(s, idx) {
   };
 }
 
-function TitleBar({ running, queued, totalCost, onHamburger }) {
+function TitleBar({ running, queued, totalCost, onHamburger, onNotes }) {
   const clock = useClock();
   return (
     <div className="title">
       <button className="hamb" onClick={onHamburger} aria-label="menu">≡</button>
+      <button className="hamb notes-hamb" onClick={onNotes} aria-label="notes">✎</button>
       <span className="dots"><i /><i /><i /></span>
       <span className="crumb">
         <b>~/agent-manager</b>
@@ -564,7 +565,8 @@ export default function App() {
   return (
     <div className="app" data-mobile-drawer={drawerOpen ? '1' : '0'}>
       <TitleBar running={counts.running} queued={totals.queued} totalCost={totals.cost}
-        onHamburger={() => setDrawerOpen(d => !d)} />
+        onHamburger={() => setDrawerOpen(d => !d)}
+        onNotes={() => setNotesOpen(o => !o)} />
       {drawerOpen && <div className="mobile-backdrop" onClick={() => setDrawerOpen(false)} />}
 
       <LeftRail
