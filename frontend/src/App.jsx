@@ -179,7 +179,7 @@ export default function App() {
       if (!list?.length) return;
       setSessions(list.map(makeSessionState));
     });
-    listNotes().then(({ notes: list }) => { if (list?.length) setNotes(list); });
+    listNotes().then(({ notes: list }) => { if (list) setNotes(list); });
     listActionItems().then(({ active }) => setTriageItems(active ?? []));
     getDigest(isoDate(0)).then(d => {
       if (d) { setDigest(d); setDigestDate(isoDate(0)); }
@@ -325,6 +325,14 @@ export default function App() {
     const id = setTimeout(() => dismissToast(toasts[0].id), 5000);
     return () => clearTimeout(id);
   }, [toasts, dismissToast]);
+
+  // Refresh notes periodically so AI-generated titles/tags surface automatically.
+  useEffect(() => {
+    const id = setInterval(() => {
+      listNotes().then(({ notes: list }) => { if (list) setNotes(list); });
+    }, 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const refreshSessions = useCallback(() =>
     listSessions().then(({ sessions: list }) => {

@@ -210,6 +210,7 @@ class Note(models.Model):
     body = models.TextField(blank=True)
     ref = models.CharField(max_length=100, blank=True, null=True)
     pinned = models.BooleanField(default=False)
+    ai_tagged = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
@@ -224,6 +225,7 @@ class Note(models.Model):
             'body': self.body,
             'ref': self.ref or None,
             'pinned': self.pinned,
+            'aiTagged': self.ai_tagged,
             'createdAt': fmt(self.created_at),
             'updatedAt': fmt(self.updated_at),
         }

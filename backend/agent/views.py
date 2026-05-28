@@ -932,6 +932,77 @@ def schedule_detail(request, schedule_id):
     return JsonResponse(_schedule_dict(schedule))
 
 
+def _auto_tag_note(note_id):
+    import django
+    try:
+        from google import genai
+        note = Note.objects.get(pk=note_id)
+    except Note.DoesNotExist:
+        return
+
+    # Skip if user has already set a title and a ref manually.
+    if note.title.strip() and note.ref:
+        return
+
+    body = note.body.strip()
+    if not body:
+        return
+
+    # Gather existing tags so AI can reuse them.
+    existing_refs = list(
+        Note.objects.exclude(ref__isnull=True).exclude(ref='')
+        .values_list('ref', flat=True).distinct()
+    )
+    session_refs = list(
+        Session.objects.exclude(linear_issue_key='').exclude(linear_issue_key__isnull=True)
+        .values_list('linear_issue_key', flat=True).distinct()
+    )
+    all_tags = list(dict.fromkeys(existing_refs + session_refs))  # dedup, preserve order
+
+    tags_str = ', '.join(all_tags) if all_tags else '(none yet)'
+
+    prompt = f"""You are tagging a personal note. Return ONLY a JSON object with two keys: "title" and "tag".
+
+Rules:
+- "title": a short descriptive title (max 8 words) for the note
+- "tag": pick the best match from the existing tags below, OR invent a short new tag (1-3 words, lowercase, hyphenated if needed) if none fit
+- Existing tags: {tags_str}
+- Prefer reusing an existing tag over creating a new one
+- Do not wrap in markdown or add any explanation
+
+Note body:
+{body[:2000]}
+
+Respond with only JSON, e.g.: {{"title": "Grocery run", "tag": "groceries"}}"""
+
+    try:
+        client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        response = client.models.generate_content(
+            model=settings.GEMINI_MODEL,
+            contents=prompt,
+        )
+        raw = response.text.strip()
+        # Strip markdown code fences if present
+        if raw.startswith('```'):
+            raw = raw.split('```')[1]
+            if raw.startswith('json'):
+                raw = raw[4:]
+        result = json.loads(raw.strip())
+        title = str(result.get('title', '')).strip()
+        tag = str(result.get('tag', '')).strip()
+    except Exception:
+        return
+
+    # Re-fetch to avoid overwriting user edits made during the 5-min window.
+    note.refresh_from_db()
+    if not note.title.strip() and title:
+        note.title = title
+    if not note.ref and tag:
+        note.ref = tag
+    note.ai_tagged = True
+    note.save()
+
+
 @csrf_exempt
 def list_or_create_notes(request):
     if request.method == 'GET':
@@ -947,6 +1018,7 @@ def list_or_create_notes(request):
         ref=data.get('ref') or None,
         pinned=data.get('pinned', False),
     )
+    threading.Timer(300, _auto_tag_note, args=[note.pk]).start()
     return JsonResponse(note.to_dict(), status=201)
 
 
