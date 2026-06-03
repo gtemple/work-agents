@@ -5,6 +5,7 @@ import logging
 
 logger = logging.getLogger(__name__)
 _thread = None
+_last_linear_sync = 0
 
 
 def _generate_daily_digest(date_str: str):
@@ -86,6 +87,7 @@ Keep each bullet to one line. Use the session titles. No intro sentence. No fill
 
 
 def _loop():
+    global _last_linear_sync
     # Wait for Django to finish starting up
     time.sleep(5)
     while True:
@@ -95,6 +97,17 @@ def _loop():
             from .models import Schedule, Session, UserContext, Memory
             from . import agent_loop
             from . import suggestions as sug
+
+            # Linear sync every 5 minutes — pick up new issues without webhooks
+            if time.time() - _last_linear_sync >= 300:
+                try:
+                    from .views import _do_linear_sync
+                    from django.conf import settings
+                    if settings.LINEAR_API_KEY:
+                        _do_linear_sync()
+                except Exception:
+                    logger.exception('Linear sync failed')
+                _last_linear_sync = time.time()
 
             # Always promote queued items into open slots
             sug.promote_queued_to_active()

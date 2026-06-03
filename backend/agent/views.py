@@ -577,19 +577,10 @@ def linear_webhook(request):
     })
 
 
-@require_http_methods(['POST'])
-@csrf_exempt
-def linear_sync(request):
-    """Pull open issues from Linear and create sessions for any not already imported."""
+def _do_linear_sync(state_filter='open'):
     from . import linear as linear_mod
 
-    data = json.loads(request.body or '{}')
-    state_filter = data.get('state', 'open')
-
-    try:
-        issues = linear_mod.fetch_issues(state_filter=state_filter)
-    except Exception as e:
-        return JsonResponse({'error': str(e)}, status=500)
+    issues = linear_mod.fetch_issues(state_filter=state_filter)
 
     created_count = 0
     skipped_count = 0
@@ -629,7 +620,6 @@ def linear_sync(request):
         if needs_plan:
             sessions_to_plan.append(session)
 
-    # Stagger planning threads 8s apart so they don't all hit the API at once
     def _start_staggered(sessions):
         for i, s in enumerate(sessions):
             if i > 0:
@@ -639,12 +629,22 @@ def linear_sync(request):
     if sessions_to_plan:
         _bg(lambda: _start_staggered(sessions_to_plan))
 
-    return JsonResponse({
-        'imported': created_count,
-        'already_existed': skipped_count,
-        'planning': len(sessions_to_plan),
-        'total': len(issues),
-    })
+    return {'imported': created_count, 'already_existed': skipped_count, 'planning': len(sessions_to_plan), 'total': len(issues)}
+
+
+@require_http_methods(['POST'])
+@csrf_exempt
+def linear_sync(request):
+    """Pull open issues from Linear and create sessions for any not already imported."""
+    data = json.loads(request.body or '{}')
+    state_filter = data.get('state', 'open')
+
+    try:
+        result = _do_linear_sync(state_filter=state_filter)
+    except Exception as e:
+        return JsonResponse({'error': str(e)}, status=500)
+
+    return JsonResponse(result)
 
 
 # ── Schedules ─────────────────────────────────────────────────────────────────
